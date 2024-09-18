@@ -230,12 +230,11 @@ int main(int argc, char *args[]) {
 					}
 				} else if (event.type == SDL_EventType::SDL_MOUSEBUTTONDOWN) {
 					if (event.button.button == 1) {
-						input->flap = true;
-						input->hovering = true;
+						input->input_down();
 					}
 				} else if (event.type == SDL_EventType::SDL_MOUSEBUTTONUP) {
 					if (event.button.button == 1) {
-						input->hovering = false;
+						input->input_up();
 					}
 				}
 			}

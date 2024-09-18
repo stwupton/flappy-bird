@@ -50,30 +50,30 @@ void Game::_bird(Game_State *state, Input *input, float delta) {
 
 	// Apply gravity
 	if (state->play_started) {
-		if (input->hovering && state->current_gravity < .0f) {
-			state->current_gravity += Game_Properties::gravity * 0.5f;
+		if (input->hovering && state->bird.y_velocity > .0f) {
+			state->bird.y_velocity -= Game_Properties::gravity * 0.5f;
 		} else {
-			state->current_gravity += Game_Properties::gravity;
+			state->bird.y_velocity -= Game_Properties::gravity;
 		}
 	}
 
 	// Flap 
 	if (input->flap) {
 		// TODO(steven): Workaround for not going too high, maybe collide at the top instead
-		if (state->bird_position.y < Game_Properties::view_height / 2) {
-			state->current_gravity = -Game_Properties::flap_force;
+		if (state->bird.position.y < Game_Properties::view_height / 2) {
+			state->bird.y_velocity = Game_Properties::flap_force;
 		}
-		input->flap = false;
+		input->flap_handled();
 	}
 
 	if (state->play_started) {
-		state->bird_position.y -= state->current_gravity * delta;
-		bird_transform = glm::translate(bird_transform, state->bird_position);
+		state->bird.position.y += state->bird.y_velocity * delta;
+		bird_transform = glm::translate(bird_transform, state->bird.position);
 	}
 
 	// Apply rotation
 	// TODO(steven): Rotates too fast
-	const float rotation_degrees = -glm::clamp(state->current_gravity, -10.f, 30.f);
+	const float rotation_degrees = glm::clamp(state->bird.y_velocity, -30.f, 10.f);
 	const float rotation_radians = rotation_degrees * glm::pi<float>() / 180;
 	bird_transform = glm::rotate(bird_transform, rotation_radians, glm::vec3(0.0f, 0.0f, 1.0f));
 

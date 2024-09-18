@@ -10,10 +10,14 @@ struct Sprite {
 	Asset::Texture_ID texture;
 };
 
+struct Bird {
+	float y_velocity;
+	glm::vec3 position = glm::vec3(0.0f);
+};
+
 struct Game_State {
 	bool play_started = false;
 	float ground_scroll = 0;
 	Array<Sprite, 256> sprites;
-	float current_gravity = 0.0f;
-	glm::vec3 bird_position = glm::vec3(0.0f);
+	Bird bird;
 };
