@@ -87,7 +87,7 @@ int get_display_bounds(SDL_Rect *display_bounds) {
 
 // Must have the main standard arguments for SDL to work.
 int main(int argc, char *args[]) {
-	int success = SDL_Init(SDL_INIT_EVERYTHING);
+	int success = SDL_Init(SDL_INIT_VIDEO);
 	if (success != 0) {
 		SDL_Log(SDL_GetError());
 		return -1;
@@ -139,6 +139,12 @@ int main(int argc, char *args[]) {
 		return -1;
 	}
 
+	application = new Application();
+	application->window = { 
+		.width = display_bounds.w, 
+		.height = display_bounds.h 
+	};
+
 	// TODO(steven): Clean up loading
 
 	// Get shader contents
@@ -167,7 +173,7 @@ int main(int argc, char *args[]) {
 	SDL_RWclose(file);
 
 	renderer = new GL_Renderer();
-	renderer->init(handle_gl_error, vertex_contents, fragment_contents);
+	renderer->init(*application, handle_gl_error, vertex_contents, fragment_contents);
 
 	// Delete shader file contents
 	free(vertex_contents);
@@ -200,45 +206,51 @@ int main(int argc, char *args[]) {
 		stbi_image_free(data);
 	}
 
-	application = new Application();
-	application->window = { 
-		.width = display_bounds.w, 
-		.height = display_bounds.h 
-	};
-
 	game_state = new Game_State();
+	Game::setup(game_state);
+
 	input = new Input();
 
 	Uint64 previous_time = SDL_GetTicks64();
 	float time_accumulator = 0;
-	int sim_speed = 1;
+	float sim_speed = 1;
 
 	bool should_close = false;
 	while (!should_close) {
+		SDL_Event event;
+		while (SDL_PollEvent(&event)) {
+			if (event.type == SDL_EventType::SDL_KEYDOWN) {
+				switch (event.key.keysym.sym) {
+					case SDLK_ESCAPE: {
+						should_close = true;
+					} break;
+
+					case SDLK_MINUS: {
+						sim_speed -= sim_speed <= 1.0f ? 0.1f : 1.0f;
+						sim_speed = fmaxf(0.0f, sim_speed);
+					} break;
+
+					case SDLK_EQUALS: {
+						sim_speed += sim_speed < 1.0f ? 0.1f : 1.0f;
+						sim_speed = fminf(255, sim_speed);
+					} break;
+				}
+			} else if (event.type == SDL_EventType::SDL_MOUSEBUTTONDOWN) {
+				if (event.button.button == 1) {
+					input->input_down();
+				}
+			} else if (event.type == SDL_EventType::SDL_MOUSEBUTTONUP) {
+				if (event.button.button == 1) {
+					input->input_up();
+				}
+			}
+		}
+
 		const Uint64 current_time = SDL_GetTicks64();
 		time_accumulator += (current_time - previous_time) * sim_speed;
 		previous_time = current_time;
 
 		while (time_accumulator >= Game_Properties::sim_time_ms) {
-			SDL_Event event;
-			while (SDL_PollEvent(&event)) {
-				if (event.type == SDL_EventType::SDL_KEYDOWN) {
-					switch (event.key.keysym.sym) {
-						case SDLK_ESCAPE: {
-							should_close = true;
-						} break;
-					}
-				} else if (event.type == SDL_EventType::SDL_MOUSEBUTTONDOWN) {
-					if (event.button.button == 1) {
-						input->input_down();
-					}
-				} else if (event.type == SDL_EventType::SDL_MOUSEBUTTONUP) {
-					if (event.button.button == 1) {
-						input->input_up();
-					}
-				}
-			}
-
 			time_accumulator -= Game_Properties::sim_time_ms;
 			Game::update(game_state, input, Game_Properties::sim_time_s);
 		}

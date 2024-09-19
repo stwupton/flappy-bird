@@ -15,9 +15,14 @@ struct Bird {
 	glm::vec3 position = glm::vec3(0.0f);
 };
 
+struct Pipe {
+	glm::vec3 position = glm::vec3(0.0f);
+};
+
 struct Game_State {
 	bool play_started = false;
 	float ground_scroll = 0;
 	Array<Sprite, 256> sprites;
 	Bird bird;
+	Pipe pipes[2] = {};
 };

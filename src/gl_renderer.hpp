@@ -13,11 +13,23 @@
 
 #define DEBUG_MESSAGE_CALLBACK GLDEBUGPROC
 
+struct Shader_Program {
+	GLuint id;
+	struct {
+		GLint view_projection;
+		GLint transform;
+	} uniform_location;
+};
+
 struct GL_Renderer {
 	std::array<GLuint, static_cast<size_t>(Asset::Texture_ID::_length)> texture_indices = {};
-	GLuint shader_program;
+	Shader_Program shader_program;
 
-	void init(DEBUG_MESSAGE_CALLBACK, const char *vertex_contents, const char *fragment_contents);
+	void init(const Application &, DEBUG_MESSAGE_CALLBACK, const char *vertex_contents, const char *fragment_contents);
 	void render(const Application &, const Game_State &) const;
 	void load(unsigned char * data, Asset::Texture_ID, const Asset::Texture &);
+
+private:
+	void set_viewport(const Application &);
+	void create_shader(const char *vertex_contents, const char *fragment_contents);
 };
