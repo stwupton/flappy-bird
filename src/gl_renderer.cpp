@@ -19,6 +19,15 @@ void GL_Renderer::init(
 
 	this->create_shader(vertex_contents, fragment_contents);
 
+	// Set up view projection transform and add it to the shader
+	const float left = -((float)Game_Properties::view_width / 2);
+	const float right = (float)Game_Properties::view_width / 2;
+	const float bottom = -((float)Game_Properties::view_height / 2);
+	const float top = (float)Game_Properties::view_height / 2;
+	const glm::mat4 view_projection = glm::ortho(left, right, bottom, top);
+
+	glUniformMatrix4fv(this->shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
+
 	// Generate all texture indices
 	glGenTextures(static_cast<GLsizei>(this->texture_indices.size()), this->texture_indices.data());
 
@@ -58,11 +67,16 @@ void GL_Renderer::render(
 ) const {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	Asset::Texture_ID cache_texture_id = Asset::Texture_ID::none;
+
 	glm::mat4 identity = glm::mat4(1.0f);
 	for (const Sprite &sprite : state.sprites) {
 		const Asset::Texture &texture = Asset::get_texture(sprite.texture);
 
-		glBindTexture(GL_TEXTURE_2D, this->texture_indices[(size_t)sprite.texture]);
+		if (sprite.texture != cache_texture_id) {
+			glBindTexture(GL_TEXTURE_2D, this->texture_indices[(size_t)sprite.texture]);
+			cache_texture_id = sprite.texture;
+		}
 
 		const glm::vec3 texture_size = glm::vec3(texture.width, texture.height, 1.0f);
 		const glm::mat4 scale_transform = glm::scale(identity, texture_size);
@@ -135,12 +149,4 @@ void GL_Renderer::set_viewport(const Application &application) {
 
 	glViewport(viewport_x, viewport_y, viewport_width, viewport_height);
 	glScissor(viewport_x, viewport_y, viewport_width, viewport_height);
-
-	const float left = -((float)Game_Properties::view_width / 2);
-	const float right = (float)Game_Properties::view_width / 2;
-	const float bottom = -((float)Game_Properties::view_height / 2);
-	const float top = (float)Game_Properties::view_height / 2;
-	const glm::mat4 view_projection = glm::ortho(left, right, bottom, top);
-
-	glUniformMatrix4fv(this->shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
 }

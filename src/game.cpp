@@ -133,6 +133,6 @@ void Game::_pipe(Game_State *state, float delta) {
 }
 
 void Game::_setup_pipe(Pipe *pipe, float x) {
-	const float y = glm::linearRand(Game_Properties::pipe_y_range, -Game_Properties::pipe_y_range);
+	const float y = (float)rand() / RAND_MAX * Game_Properties::pipe_y_spacing * 2 - Game_Properties::pipe_y_spacing;
 	pipe->position = glm::vec3(x, y, 0.0f);
 }

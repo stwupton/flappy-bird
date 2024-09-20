@@ -7,7 +7,8 @@ namespace Asset {
 		bird,
 		ground,
 		pipe,
-		_length
+		_length,
+		none
 	};
 
 	struct Texture {
