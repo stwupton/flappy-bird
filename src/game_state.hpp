@@ -13,10 +13,31 @@ struct Sprite {
 struct Bird {
 	float y_velocity;
 	glm::vec3 position = glm::vec3(0.0f);
+	bool is_colliding = false;
 };
 
 struct Pipe {
-	glm::vec3 position = glm::vec3(0.0f);
+	float y;
+};
+
+struct Pipe_Pair {
+	float x;
+	Pipe top, bottom;
+};
+
+enum class Shape_Type {
+	rectangle,
+	circle
+};
+
+struct Shape {
+	glm::mat4 transform = glm::mat4(1.0f);
+	Shape_Type type;
+	glm::vec4 colour = glm::vec4(0.0f);
+	union {
+		struct { float radius; } circle;
+		struct { float width; float height; } rectangle;
+	};
 };
 
 struct Game_State {
@@ -24,5 +45,10 @@ struct Game_State {
 	float ground_scroll = 0;
 	Array<Sprite, 256> sprites;
 	Bird bird;
-	Pipe pipes[2] = {};
+	Pipe_Pair pipe_pairs[2] = {};
+
+	// Debug
+	// TODO(steven): Move elsewhere?
+	bool show_collision_debugger = false;
+	Array<Shape, 16> debug_shapes;
 };

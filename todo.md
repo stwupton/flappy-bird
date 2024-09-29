@@ -1,3 +1,4 @@
+- [ ] Draw debug shapes ready for collision detection.
 - [ ] Detect when the character collides with the floor or obstacles, and reset the game when a collision occurs.
 - [ ] Accumulate one point for each obstacle that the player passes. Display the score.
 - [ ] Add some sounds that will play each time the player gains a point, and when the player loses.

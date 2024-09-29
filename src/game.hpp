@@ -10,8 +10,10 @@
 namespace Game {
 	void setup(Game_State *);
 	void update(Game_State *, Input *, float delta);
-	void _scroll_ground(Game_State *, float delta);
 	void _bird(Game_State *, Input *, float delta);
+	void _debug_collision_shapes(Game_State *);
+	void _detect_collisions(Game_State *);
 	void _pipe(Game_State *, float delta);
-	void _setup_pipe(Pipe *, float x);
+	void _scroll_ground(Game_State *, float delta);
+	void _setup_pipe(Pipe_Pair *, float x);
 };

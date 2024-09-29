@@ -1,10 +1,12 @@
 #include "gl_renderer.hpp"
 
+GL_Renderer::GL_Renderer(Platform &platform) : platform{platform} {}
+
 void GL_Renderer::init(
 	const Application &application,
-	DEBUG_MESSAGE_CALLBACK debug_message_handle, 
-	const char *vertex_contents, 
-	const char *fragment_contents
+	GLDEBUGPROC debug_message_handle, 
+	const Shader_Contents &basic_shader_contents,
+	const Shader_Contents &shape_shader_contents
 ) {
 	// Global settings
 	glEnable(GL_BLEND);
@@ -17,7 +19,6 @@ void GL_Renderer::init(
 
 	glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
 
-	this->create_shader(vertex_contents, fragment_contents);
 
 	// Set up view projection transform and add it to the shader
 	const float left = -((float)Game_Properties::view_width / 2);
@@ -26,7 +27,11 @@ void GL_Renderer::init(
 	const float top = (float)Game_Properties::view_height / 2;
 	const glm::mat4 view_projection = glm::ortho(left, right, bottom, top);
 
-	glUniformMatrix4fv(this->shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
+	this->create_basic_shader(basic_shader_contents);
+	glUniformMatrix4fv(this->basic_shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
+
+	this->create_shape_shader(shape_shader_contents);
+	glUniformMatrix4fv(this->shape_shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
 
 	// Generate all texture indices
 	glGenTextures(static_cast<GLsizei>(this->texture_indices.size()), this->texture_indices.data());
@@ -67,8 +72,9 @@ void GL_Renderer::render(
 ) const {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	// Basic renderer
+	glUseProgram(this->basic_shader_program.id);
 	Asset::Texture_ID cache_texture_id = Asset::Texture_ID::none;
-
 	glm::mat4 identity = glm::mat4(1.0f);
 	for (const Sprite &sprite : state.sprites) {
 		const Asset::Texture &texture = Asset::get_texture(sprite.texture);
@@ -81,8 +87,28 @@ void GL_Renderer::render(
 		const glm::vec3 texture_size = glm::vec3(texture.width, texture.height, 1.0f);
 		const glm::mat4 scale_transform = glm::scale(identity, texture_size);
 		const glm::mat4 transform = sprite.transform * scale_transform;
-		glUniformMatrix4fv(this->shader_program.uniform_location.transform, 1, GL_FALSE, &transform[0][0]);
+		glUniformMatrix4fv(this->basic_shader_program.uniform_location.transform, 1, GL_FALSE, &transform[0][0]);
 
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	}
+
+	glUseProgram(this->shape_shader_program.id);
+	for (const Shape &debug_shape : state.debug_shapes) {
+		const glm::vec4 colour = glm::vec4(1.0f, 1.0f, 1.0f, 0.5f);
+
+		glm::mat4 scale_transform;
+		if (debug_shape.type == Shape_Type::rectangle) {
+			scale_transform = glm::scale(identity, glm::vec3(debug_shape.rectangle.width, debug_shape.rectangle.height, 1.0f));
+		} else if (debug_shape.type == Shape_Type::circle) {
+			const float size = debug_shape.circle.radius * 2;
+			scale_transform = glm::scale(identity, glm::vec3(size, size, 1.0f));
+		}
+
+		const glm::mat4 transform = debug_shape.transform * scale_transform;
+
+		glUniform4fv(this->shape_shader_program.uniform_location.colour, 1, &debug_shape.colour[0]);
+		glUniformMatrix4fv(this->shape_shader_program.uniform_location.transform, 1, GL_FALSE, &transform[0][0]);
+		glUniform1i(this->shape_shader_program.uniform_location.shape_type, (GLint)debug_shape.type);
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	}
 
@@ -99,31 +125,61 @@ void GL_Renderer::load(unsigned char *data, Asset::Texture_ID asset_id, const As
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 }
 
-void GL_Renderer::create_shader(
-	const char *vertex_contents, 
-	const char *fragment_contents
-) {
+void GL_Renderer::create_basic_shader(const Shader_Contents &contents) {
 	// Compile shaders
 	GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertex_shader, 1, &vertex_contents, NULL);
+	glShaderSource(vertex_shader, 1, &contents.vertex, NULL);
 	glCompileShader(vertex_shader);
+	this->log_shader_compile_error(vertex_shader, "Basic Vertex");
 
 	GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragment_shader, 1, &fragment_contents, NULL);
+	glShaderSource(fragment_shader, 1, &contents.fragment, NULL);
 	glCompileShader(fragment_shader);
+	this->log_shader_compile_error(fragment_shader, "Basic Fragment");
 
-	this->shader_program.id = glCreateProgram();
-	glAttachShader(this->shader_program.id, vertex_shader);
-	glAttachShader(this->shader_program.id, fragment_shader);
-	glLinkProgram(this->shader_program.id);
-	glUseProgram(this->shader_program.id);
+	this->basic_shader_program.id = glCreateProgram();
+	glAttachShader(this->basic_shader_program.id, vertex_shader);
+	glAttachShader(this->basic_shader_program.id, fragment_shader);
+	glLinkProgram(this->basic_shader_program.id);
+	glUseProgram(this->basic_shader_program.id);
+	this->log_shader_link_error(this->basic_shader_program.id, "Basic");
 
 	glDeleteShader(vertex_shader);
 	glDeleteShader(fragment_shader);
 
 	// Fetch uniform locations
-	this->shader_program.uniform_location.view_projection = glGetUniformLocation(this->shader_program.id, "view_projection");
-	this->shader_program.uniform_location.transform = glGetUniformLocation(this->shader_program.id, "transform");
+	this->basic_shader_program.uniform_location.view_projection = glGetUniformLocation(this->basic_shader_program.id, "view_projection");
+	this->basic_shader_program.uniform_location.transform = glGetUniformLocation(this->basic_shader_program.id, "transform");
+}
+
+void GL_Renderer::create_shape_shader(const Shader_Contents &contents) {
+	// Compile shaders
+	GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(vertex_shader, 1, &contents.vertex, NULL);
+	glCompileShader(vertex_shader);
+	this->log_shader_compile_error(vertex_shader, "Shape Vertex");
+
+	GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(fragment_shader, 1, &contents.fragment, NULL);
+	glCompileShader(fragment_shader);
+	this->log_shader_compile_error(fragment_shader, "Shape Fragment");
+
+	this->shape_shader_program.id = glCreateProgram();
+	glAttachShader(this->shape_shader_program.id, vertex_shader);
+	glAttachShader(this->shape_shader_program.id, fragment_shader);
+	glLinkProgram(this->shape_shader_program.id);
+	this->log_shader_link_error(this->shape_shader_program.id, "Shape");
+
+	glUseProgram(this->shape_shader_program.id);
+
+	glDeleteShader(vertex_shader);
+	glDeleteShader(fragment_shader);
+
+	// Fetch uniform locations
+	this->shape_shader_program.uniform_location.view_projection = glGetUniformLocation(this->shape_shader_program.id, "view_projection");
+	this->shape_shader_program.uniform_location.transform = glGetUniformLocation(this->shape_shader_program.id, "transform");
+	this->shape_shader_program.uniform_location.colour = glGetUniformLocation(this->shape_shader_program.id, "colour");
+	this->shape_shader_program.uniform_location.shape_type = glGetUniformLocation(this->shape_shader_program.id, "shape_type");
 }
 
 void GL_Renderer::set_viewport(const Application &application) {
@@ -149,4 +205,55 @@ void GL_Renderer::set_viewport(const Application &application) {
 
 	glViewport(viewport_x, viewport_y, viewport_width, viewport_height);
 	glScissor(viewport_x, viewport_y, viewport_width, viewport_height);
+}
+
+void GL_Renderer::log(const char *format, ...) const {
+	va_list args;
+	va_start(args, format);
+	const int message_length = vsnprintf(NULL, 0, format, args);
+	const int message_byte_length = sizeof(char) * (message_length + 1);
+	assert(message_length >= 0);
+	char *message = (char *)malloc(message_byte_length);
+	memset(message, 0, message_byte_length);
+	vsnprintf(message, message_byte_length, format, args);
+	va_end(args);
+
+	this->platform.log_info("GL Log: %s", message);
+	free(message);
+}
+
+void GL_Renderer::log_shader_compile_error(GLuint shader_id, const char *name) const {
+	GLint success;
+	glGetShaderiv(shader_id, GL_COMPILE_STATUS, &success);
+
+	if (success == GL_FALSE) {
+		GLint message_length;
+		glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &message_length);
+
+		GLint message_byte_length = sizeof(char) * message_length;
+		char *message = (char *)malloc(message_byte_length);
+		memset(message, 0, message_byte_length);
+		glGetShaderInfoLog(shader_id, message_length, NULL, message);
+
+		this->log("Shader (%s) failed to compile. Message: %s", name, message);
+		free(message);
+	}
+}
+
+void GL_Renderer::log_shader_link_error(GLuint program_id, const char *name) const {
+	GLint success;
+	glGetProgramiv(program_id, GL_LINK_STATUS, &success);
+
+	if (success == GL_FALSE) {
+		GLint message_length;
+		glGetProgramiv(program_id, GL_INFO_LOG_LENGTH, &message_length);
+
+		GLint message_byte_length = sizeof(char) * message_length;
+		char *message = (char *)malloc(message_byte_length);
+		memset(message, 0, message_byte_length);
+		glGetProgramInfoLog(program_id, message_length, NULL, message);
+
+		this->log("Program (%s) failed to link. Message: %s", name, message);
+		free(message);
+	}
 }

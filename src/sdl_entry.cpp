@@ -8,17 +8,19 @@
 #include <stb_image.h>
 
 #include "application.hpp"
-#include "gl_renderer.hpp"
 #include "game.hpp"
 #include "game_state.hpp"
+#include "gl_renderer.hpp"
 #include "input.hpp"
+#include "platform.hpp"
 
 static GL_Renderer *renderer = nullptr;
 static Application *application = nullptr;
+static Platform *platform = nullptr;
 static Game_State *game_state = nullptr;
 static Input *input = nullptr;
 
-void handle_gl_error(
+void debug_message_handle(
 	GLenum source,
 	GLenum type,
 	GLuint id,
@@ -28,10 +30,42 @@ void handle_gl_error(
 	const void *user_param
 ) {
 	if (type == GL_DEBUG_TYPE_ERROR) {
-		SDL_LogError(SDL_LOG_PRIORITY_ERROR, "GL Error - Severity: %i, Message: %s", severity, message);
+		platform->log_error("GL Error: Severity: %i, Message: %s", severity, message);
 	} else {
-		SDL_Log("GL Debug Message - %s", message);
+		platform->log_info("GL Debug Message: %s", message);
 	}
+}
+
+Shader_Contents get_shader_contents(const char *name) {
+	std::string file_path = "";
+	std::string executable_location = SDL_GetBasePath();
+	SDL_RWops *file;
+	Sint64 file_size = 0;
+
+	// Vertex Shader
+	file_path = executable_location + "assets/shaders/" + name + ".vert";
+	file = SDL_RWFromFile(file_path.c_str(), "r");
+	file_size = SDL_RWsize(file);
+	char *vertex_contents = (char *)malloc(sizeof(char) * (file_size + 1));
+	memset(vertex_contents, 0, sizeof(char) * (file_size + 1));
+	SDL_RWread(file, vertex_contents, sizeof(char), file_size);
+	SDL_RWclose(file);
+
+	// Fragment Shader
+	file_path = executable_location + "assets/shaders/" + name + ".frag";
+	file = SDL_RWFromFile(file_path.c_str(), "r");
+	file_size = SDL_RWsize(file);
+	char *fragment_contents = (char *)malloc(sizeof(char) * (file_size + 1));
+	memset(fragment_contents, 0, sizeof(char) * (file_size + 1));
+	SDL_RWread(file, fragment_contents, sizeof(char), file_size);
+	SDL_RWclose(file);
+
+	return { .vertex = vertex_contents, .fragment = fragment_contents };
+}
+
+void free_shader_contents(Shader_Contents *contents) {
+	free((void *)contents->vertex);
+	free((void *)contents->fragment);
 }
 
 int get_display_bounds(SDL_Rect *display_bounds) {
@@ -145,41 +179,24 @@ int main(int argc, char *args[]) {
 		.height = display_bounds.h 
 	};
 
+	platform = new Platform();
+
 	// TODO(steven): Clean up loading
 
 	// Get shader contents
-	const size_t file_path_max = 256;
-	std::string file_path = "";
-	std::string executable_location = SDL_GetBasePath();
-	SDL_RWops *file;
-	Sint64 file_size = 0;
+	Shader_Contents basic_shader_contents = get_shader_contents("basic");
+	Shader_Contents shape_shader_contents = get_shader_contents("shape");
 
-	// Vertex Shader
-	file_path = executable_location + "assets/shaders/basic.vert";
-	file = SDL_RWFromFile(file_path.c_str(), "r");
-	file_size = SDL_RWsize(file);
-	char *vertex_contents = (char *)malloc(sizeof(char) * (file_size + 1));
-	memset(vertex_contents, 0, sizeof(char) * (file_size + 1));
-	SDL_RWread(file, vertex_contents, sizeof(char), file_size);
-	SDL_RWclose(file);
-
-	// Fragment Shader
-	file_path = executable_location + "assets/shaders/basic.frag";
-	file = SDL_RWFromFile(file_path.c_str(), "r");
-	file_size = SDL_RWsize(file);
-	char *fragment_contents = (char *)malloc(sizeof(char) * (file_size + 1));
-	memset(fragment_contents, 0, sizeof(char) * (file_size + 1));
-	SDL_RWread(file, fragment_contents, sizeof(char), file_size);
-	SDL_RWclose(file);
-
-	renderer = new GL_Renderer();
-	renderer->init(*application, handle_gl_error, vertex_contents, fragment_contents);
+	renderer = new GL_Renderer(*platform);
+	renderer->init(*application, debug_message_handle, basic_shader_contents, shape_shader_contents); 
 
 	// Delete shader file contents
-	free(vertex_contents);
-	free(fragment_contents);
+	free_shader_contents(&basic_shader_contents);
+	free_shader_contents(&shape_shader_contents);
 
 	// Load all textures
+	std::string file_path = "";
+	std::string executable_location = SDL_GetBasePath();
 	for (int i = 0; i < Asset::texture_data.size(); i++) {
 		Asset::Texture &texture = Asset::texture_data[i];
 		Asset::Texture_ID texture_id = static_cast<Asset::Texture_ID>(i);
@@ -233,6 +250,10 @@ int main(int argc, char *args[]) {
 					case SDLK_EQUALS: {
 						sim_speed += sim_speed < 1.0f ? 0.1f : 1.0f;
 						sim_speed = fminf(255, sim_speed);
+					} break;
+
+					case SDLK_d: {
+						game_state->show_collision_debugger = !game_state->show_collision_debugger;
 					} break;
 				}
 			} else if (event.type == SDL_EventType::SDL_MOUSEBUTTONDOWN) {
