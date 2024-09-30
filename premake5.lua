@@ -7,7 +7,7 @@ project 'flappy-bird'
     kind 'WindowedApp'
     language 'C++'
     cppdialect 'C++20'
-    files { 'src/**.cpp' }
+    files { 'src/main.cpp' }
 
 	-- Copy assets to output directory
 	postbuildcommands {

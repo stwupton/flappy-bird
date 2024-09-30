@@ -4,6 +4,7 @@
 
 #include "assets.hpp"
 #include "array.hpp"
+#include "size.hpp"
 
 struct Sprite {
 	glm::mat4 transform = glm::mat4(1.f);
@@ -36,7 +37,7 @@ struct Shape {
 	glm::vec4 colour = glm::vec4(0.0f);
 	union {
 		struct { float radius; } circle;
-		struct { float width; float height; } rectangle;
+		Size<float> rectangle = {};
 	};
 };
 

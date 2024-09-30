@@ -1,3 +1,5 @@
+#pragma once
+
 #include <SDL2/SDL.h>
 #include <glm/glm.hpp>
 #include <GL/glew.h>
@@ -12,11 +14,11 @@
 #include "game_state.hpp"
 #include "gl_renderer.hpp"
 #include "input.hpp"
-#include "platform.hpp"
+#include "sdl_platform.hpp"
 
 static GL_Renderer *renderer = nullptr;
 static Application *application = nullptr;
-static Platform *platform = nullptr;
+static SDL_Platform *platform = nullptr;
 static Game_State *game_state = nullptr;
 static Input *input = nullptr;
 
@@ -179,7 +181,7 @@ int main(int argc, char *args[]) {
 		.height = display_bounds.h 
 	};
 
-	platform = new Platform();
+	platform = new SDL_Platform();
 
 	// TODO(steven): Clean up loading
 
