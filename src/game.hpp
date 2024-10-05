@@ -11,30 +11,34 @@
 struct Game {
 	static void setup(Game_State *state) {
 		// Setup the initial pipe positions when we start playing
-		_setup_pipe(&state->pipe_pairs[0], Game_Properties::pipe.x_spacing);
-		_setup_pipe(&state->pipe_pairs[1], Game_Properties::pipe.x_spacing * 2);
+		setup_pipe(&state->pipe_pairs[0], Game_Properties::pipe.x_spacing);
+		setup_pipe(&state->pipe_pairs[1], Game_Properties::pipe.x_spacing * 2);
 	}
 
 	static void update(Game_State *state, Input *input, float delta) {
-		// Clear the sprite
+		// Clear the sprites
 		state->sprites = {};
+
+		handle_game_reset(state, input);
 
 		// Handle first flap
 		if (!state->play_started && input->flap) {
 			state->play_started = true;
 		}
 
-		_pipe(state, delta);
-		_scroll_ground(state, delta);
-		_bird(state, input, delta);
-
-		_detect_collisions(state);
-
-		state->debug_shapes = {};
-		_debug_collision_shapes(state);
+		sky(state);
+		hills(state, delta);
+		pipe(state, delta);
+		ground(state, delta);
+		bird(state, input, delta);
+		detect_collisions(state);
+		debug_collision_shapes(state);
 	}
 
-	static void _debug_collision_shapes(Game_State *state) {
+private:
+	static void debug_collision_shapes(Game_State *state) {
+		state->debug_shapes = {};
+
 		if (!state->show_collision_debugger) {
 			return;
 		}
@@ -80,9 +84,7 @@ struct Game {
 		state->debug_shapes.push(floor_collision_shape);
 	}
 
-	static void _detect_collisions(Game_State *state) {
-		state->bird.is_colliding = false;
-
+	static void detect_collisions(Game_State *state) {
 		for (const Pipe_Pair &pair : state->pipe_pairs) {
 			for (const Pipe pipe : { pair.top, pair.bottom }) {
 				const bool is_intersecting = circle_rect_intersection(
@@ -99,19 +101,37 @@ struct Game {
 			}
 		}
 
-		state->bird.is_colliding = circle_rect_intersection(
+		const bool is_colliding_floor = circle_rect_intersection(
 			state->bird.position, 
 			Game_Properties::bird.collision_radius, 
 			Game_Properties::floor_collision.position, 
 			Game_Properties::floor_collision.size
 		);
+
+		if (is_colliding_floor) {
+			state->bird.is_colliding = true;
+			return;
+		}
 	}
 
-	static void _scroll_ground(Game_State *state, float delta) {
+	static void handle_game_reset(Game_State *state, Input *input) {
+		if (!state->bird.is_colliding) {
+			return;
+		}
+
+		const bool should_reset = state->bird.position.y <= -Game_Properties::view.height;
+		if (should_reset) {
+			*state = {};
+			*input = {};
+			setup(state);
+		}
+	}
+
+	static void ground(Game_State *state, float delta) {
 		const Asset::Texture ground_texture = Asset::get_texture(Asset::Texture_ID::ground);
 
 		// Scroll floor
-		if (state->play_started) {
+		if (state->play_started && !state->bird.is_colliding) {
 			state->ground_scroll += delta * Game_Properties::scroll_speed;
 			if (state->ground_scroll >= ground_texture.width) {
 				state->ground_scroll -= ground_texture.width;
@@ -136,7 +156,37 @@ struct Game {
 		}
 	}
 
-	static void _bird(Game_State *state, Input *input, float delta) {
+	static void hills(Game_State *state, float delta) {
+		const Asset::Texture hills_texture = Asset::get_texture(Asset::Texture_ID::hills);
+
+		// Scroll hills
+		if (state->play_started && !state->bird.is_colliding) {
+			state->hill_scroll += delta * Game_Properties::scroll_speed * Game_Properties::hill_scroll_modifier;
+			if (state->hill_scroll >= hills_texture.width) {
+				state->hill_scroll -= hills_texture.width;
+			}
+		}
+
+		const glm::vec3 position = glm::vec3(
+			hills_texture.width / 2 - Game_Properties::view.width / 2 - state->hill_scroll,
+			-Game_Properties::view.height / 2 + hills_texture.height / 2,
+			0.0f
+		);
+
+		Sprite hills = { .texture = Asset::Texture_ID::hills };
+		hills.transform = glm::translate(hills.transform, position);
+		state->sprites.push(hills);
+
+		// Put secondary hills directly to the right
+		glm::vec3 hills2_position = position;
+		hills2_position.x += hills_texture.width;
+
+		Sprite hills2 = { .texture = Asset::Texture_ID::hills };
+		hills2.transform = glm::translate(hills2.transform, hills2_position);
+		state->sprites.push(hills2);
+	}
+	
+	static void bird(Game_State *state, Input *input, float delta) {
 		const Asset::Texture bird_texture = Asset::get_texture(Asset::Texture_ID::bird);
 		glm::mat4 bird_transform = glm::mat4(1.0f);
 
@@ -150,7 +200,7 @@ struct Game {
 		}
 
 		// Flap 
-		if (input->flap) {
+		if (input->flap && !state->bird.is_colliding) {
 			// TODO(steven): Workaround for not going too high, maybe collide at the top instead
 			if (state->bird.position.y < Game_Properties::view.height / 2) {
 				state->bird.y_velocity = Game_Properties::bird.flap_force;
@@ -173,12 +223,12 @@ struct Game {
 		state->sprites.push(bird);
 	}
 
-	static void _pipe(Game_State *state, float delta) {
+	static void pipe(Game_State *state, float delta) {
 		const Asset::Texture pipe_texture = Asset::get_texture(Asset::Texture_ID::pipe);
 
 		for (Pipe_Pair &pair : state->pipe_pairs) {
 			// Update x position
-			if (state->play_started) {
+			if (state->play_started && !state->bird.is_colliding) {
 				pair.x -= Game_Properties::scroll_speed * delta;
 			}
 
@@ -187,7 +237,7 @@ struct Game {
 			const float left_of_view = -(float)Game_Properties::view.width / 2;
 			const bool pipe_is_offscreen = right_of_pipe <= left_of_view;
 			if (pipe_is_offscreen) {
-				_setup_pipe(&pair, pair.x + Game_Properties::pipe.x_spacing * 2);
+				setup_pipe(&pair, pair.x + Game_Properties::pipe.x_spacing * 2);
 			}
 
 			// Top pipe
@@ -209,7 +259,7 @@ struct Game {
 		}
 	}
 
-	static void _setup_pipe(Pipe_Pair *pair, float x) {
+	static void setup_pipe(Pipe_Pair *pair, float x) {
 		const Asset::Texture pipe_texture = Asset::get_texture(Asset::Texture_ID::pipe);
 		const float y = (
 			(float)rand() / RAND_MAX * 
@@ -219,5 +269,10 @@ struct Game {
 		pair->x = x;
 		pair->top.y = y + pipe_texture.height / 2 + Game_Properties::pipe.y_spacing / 2;
 		pair->bottom.y = y - pipe_texture.height / 2 - Game_Properties::pipe.y_spacing / 2;
+	}
+
+	static void sky(Game_State *state) {
+		Sprite sky = { .texture = Asset::Texture_ID::sky };
+		state->sprites.push(sky);
 	}
 };

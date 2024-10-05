@@ -17,7 +17,7 @@ namespace Game_Properties {
 	const struct {
 		const float y_range = (float)view.height * 0.2f;
 		const float x_spacing = (float)view.width;
-		const float y_spacing = (float)view.height * 0.2f;
+		const float y_spacing = (float)view.height * 0.22f;
 		const Size<float> collision_rect = {
 			.width = 64.f,
 			.height = 384.f
@@ -28,4 +28,5 @@ namespace Game_Properties {
 		const glm::vec3 position = glm::vec3(0.0f, (float)-view.height / 2 + 16, 0.0f);
 	} floor_collision;
 	const float scroll_speed = 100.f;
+	const float hill_scroll_modifier = .2f;
 };

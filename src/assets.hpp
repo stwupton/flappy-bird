@@ -7,6 +7,8 @@ namespace Asset {
 		bird,
 		ground,
 		pipe,
+		sky,
+		hills,
 		_length,
 		none
 	};
@@ -21,12 +23,16 @@ namespace Asset {
 		static const char *bird = "assets/bird.png";
 		static const char *ground = "assets/ground.png";
 		static const char *pipe = "assets/pipe.png";
+		static const char *sky = "assets/sky.png";
+		static const char *hills = "assets/hills.png";
 	};
 
 	inline std::array<Texture, (size_t)Texture_ID::_length> texture_data = {
 		Texture { .location = _Texture_File_Locations::bird },
 		Texture { .location = _Texture_File_Locations::ground },
-		Texture { .location = _Texture_File_Locations::pipe }
+		Texture { .location = _Texture_File_Locations::pipe },
+		Texture { .location = _Texture_File_Locations::sky },
+		Texture { .location = _Texture_File_Locations::hills }
 	};
 
 	inline Texture get_texture(Texture_ID id) {

@@ -44,6 +44,7 @@ struct Shape {
 struct Game_State {
 	bool play_started = false;
 	float ground_scroll = 0;
+	float hill_scroll = 0;
 	Array<Sprite, 256> sprites;
 	Bird bird;
 	Pipe_Pair pipe_pairs[2] = {};
