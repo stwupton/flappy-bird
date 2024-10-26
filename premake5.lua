@@ -27,7 +27,7 @@ project 'flappy-bird'
         architecture 'x86_64'
 
 	filter 'system:Windows'
-		links { 'shell32', 'opengl32' }
+		links { 'shell32', 'opengl32', 'freetype' }
 		defines { 'WIN32', 'UNICODE' }
 		
 	filter { 'system:Windows', 'configurations:Debug' }

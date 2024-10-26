@@ -14,7 +14,7 @@
 - [x] You could create a really long level and hope that the player never gets to the end of it, but it would make more sense if you used code to create obstacles when you need them.
 - [x] The game obstacles (pipes) will move off of the screen and never be used again. You might want to delete them once they are no longer useful. Or, better yet, re-use them by moving them to the left side of the screen once they move off of the right side!
 - [x] Detect when the character collides with the floor or obstacles, and reset the game when a collision occurs.
-- [ ] Accumulate one point for each obstacle that the player passes. Display the score.
+- [x] Accumulate one point for each obstacle that the player passes. Display the score.
 
 # Stretch goals:
 
@@ -23,3 +23,4 @@
 - [ ] Track the high-score between play sessions and display the high score alongside the current score.
 - [x] Add some background art! Try layering the background and scrolling at a different rate to the foreground obstacles. This is called Parallax scrolling.
 - [ ] Add clouds 
+- [ ] Build for Android

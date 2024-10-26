@@ -20,11 +20,11 @@ namespace Asset {
 	};
 
 	namespace _Texture_File_Locations {
-		static const char *bird = "assets/bird.png";
-		static const char *ground = "assets/ground.png";
-		static const char *pipe = "assets/pipe.png";
-		static const char *sky = "assets/sky.png";
-		static const char *hills = "assets/hills.png";
+		static const char *bird = "assets/images/bird.png";
+		static const char *ground = "assets/images/ground.png";
+		static const char *pipe = "assets/images/pipe.png";
+		static const char *sky = "assets/images/sky.png";
+		static const char *hills = "assets/images/hills.png";
 	};
 
 	inline std::array<Texture, (size_t)Texture_ID::_length> texture_data = {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdlib>
+
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -31,6 +33,7 @@ struct Game {
 		pipe(state, delta);
 		ground(state, delta);
 		bird(state, input, delta);
+		score(state);
 		detect_collisions(state);
 		debug_collision_shapes(state);
 	}
@@ -167,23 +170,24 @@ private:
 			}
 		}
 
-		const glm::vec3 position = glm::vec3(
-			hills_texture.width / 2 - Game_Properties::view.width / 2 - state->hill_scroll,
-			-Game_Properties::view.height / 2 + hills_texture.height / 2,
-			0.0f
+		const glm::vec2 start = glm::vec2(
+			-Game_Properties::view.width / 2 + hills_texture.width / 2,
+			-Game_Properties::view.height / 2 + hills_texture.height / 2
 		);
 
 		Sprite hills = { .texture = Asset::Texture_ID::hills };
-		hills.transform = glm::translate(hills.transform, position);
+		hills.transform = glm::translate(
+			hills.transform, 
+			glm::vec3(start.x - state->hill_scroll, start.y, 0.0f)
+		);
 		state->sprites.push(hills);
 
-		// Put secondary hills directly to the right
-		glm::vec3 hills2_position = position;
-		hills2_position.x += hills_texture.width;
-
-		Sprite hills2 = { .texture = Asset::Texture_ID::hills };
-		hills2.transform = glm::translate(hills2.transform, hills2_position);
-		state->sprites.push(hills2);
+		Sprite hills_overflow = { .texture = Asset::Texture_ID::hills };
+		hills_overflow.transform = glm::translate(
+			hills_overflow.transform, 
+			glm::vec3(start.x - state->hill_scroll + hills_texture.width, start.y, 0.0f)
+		);
+		state->sprites.push(hills_overflow);
 	}
 	
 	static void bird(Game_State *state, Input *input, float delta) {
@@ -257,6 +261,21 @@ private:
 			bottom_pipe.transform = glm::scale(bottom_pipe.transform, glm::vec3(1.0f, -1.0f, 1.0f));
 			state->sprites.push(bottom_pipe);
 		}
+	}
+
+	static void score(Game_State *state) {
+		// Update score
+		// TODO(steven): Can this be better?
+		for (int i = 0; i < state->pipe_pairs.size(); i++) {
+			if (state->pipe_pairs[i].x <= 0 && state->last_scoring_pipe_index != i) {
+				state->last_scoring_pipe_index = i;
+				state->score++;
+			}
+		}
+
+		state->score_text.position = Game_Properties::score.position;
+		state->score_text.colour = Game_Properties::score.colour;
+		_itoa(state->score, state->score_text.text, 10);
 	}
 
 	static void setup_pipe(Pipe_Pair *pair, float x) {

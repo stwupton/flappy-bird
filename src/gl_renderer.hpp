@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdarg.h>
+#include <string>
 
 #include <gl/glew.h>
 #include <glm/glm.hpp>
@@ -31,16 +32,42 @@ struct Shape_Shader_Program {
 	} uniform_location;
 };
 
+struct Text_Shader_Program {
+	GLuint id;
+	struct {
+		GLint text_colour;
+		GLint view_projection;
+		GLint transform;
+	} uniform_location;
+};
+
 struct Shader_Contents {
 	const char *vertex;
 	const char *fragment;
 };
 
+
+struct Font_Face_Character {
+	GLuint texture_id;
+	int width, height;
+	int left, top;
+	int advance_x;
+};
+
+struct Font_Face {
+	int height;
+	std::array<Font_Face_Character, 128> characters;
+};
+
 struct GL_Renderer {
 public:
 	std::array<GLuint, static_cast<size_t>(Asset::Texture_ID::_length)> texture_indices = {};
+	Font_Face font_face;
 	Basic_Shader_Program basic_shader_program;
 	Shape_Shader_Program shape_shader_program;
+	Text_Shader_Program text_shader_program;
+	GLuint generic_vao;
+	GLuint text_vao;
 
 private:
 	Platform &platform;
@@ -52,7 +79,8 @@ public:
 		const Application &application,
 		GLDEBUGPROC debug_message_handle, 
 		const Shader_Contents &basic_shader_contents,
-		const Shader_Contents &shape_shader_contents
+		const Shader_Contents &shape_shader_contents,
+		const Shader_Contents &text_shader_contents
 	) {
 		// Global settings
 		glEnable(GL_BLEND);
@@ -64,7 +92,6 @@ public:
 		glEnable(GL_SCISSOR_TEST);
 
 		glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
-
 
 		// Set up view projection transform and add it to the shader
 		const float left = -((float)Game_Properties::view.width / 2);
@@ -79,30 +106,55 @@ public:
 		this->create_shape_shader(shape_shader_contents);
 		glUniformMatrix4fv(this->shape_shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
 
+		this->create_text_shader(text_shader_contents);
+		glUniformMatrix4fv(this->text_shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
+
 		// Generate all texture indices
 		glGenTextures(static_cast<GLsizei>(this->texture_indices.size()), this->texture_indices.data());
 
-		// Create vertex array object
-		GLuint vao;
-		glGenVertexArrays(1, &vao);
-		glBindVertexArray(vao);
+		// Create generic vertex array object
+		glGenVertexArrays(1, &this->generic_vao);
+		glBindVertexArray(this->generic_vao);
 
 		// Create buffer array object
 		// Data: x, y, z, s, t
 		// Must draw counter clockwise to face forward
-		const float vertices[] = {
-			-0.5f,  0.5f, 0.0f, 0.0f, 0.0f,
+		const float generic_vertices[] = {
+			-0.5f, 0.5f, 0.0f, 0.0f, 0.0f,
 			-0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 
-			0.5f,  0.5f, 0.0f, 1.0f, 0.0f,
+			0.5f, 0.5f, 0.0f, 1.0f, 0.0f,
 			0.5f, -0.5f, 0.0f, 1.0f, 1.0f,
 		};
 
-		GLuint vbo;
-		glGenBuffers(1, &vbo);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+		GLuint generic_vbo;
+		glGenBuffers(1, &generic_vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, generic_vbo);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(generic_vertices), generic_vertices, GL_STATIC_DRAW);
 
-		// Setup vertex attributes.
+		// Setup generic vertex attributes.
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+
+		// Create generic vertex array object
+		glGenVertexArrays(1, &this->text_vao);
+		glBindVertexArray(this->text_vao);
+
+		const float text_vertices[] = {
+			0.0f, 1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 
+			1.0f, 1.0f, 0.0f, 1.0f, 0.0f,
+			1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+		};
+
+		GLuint text_vbo;
+		glGenBuffers(1, &text_vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, text_vbo);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(text_vertices), text_vertices, GL_STATIC_DRAW);
+
+		// Setup text vertex attributes.
 		glEnableVertexAttribArray(0);
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 
@@ -118,10 +170,12 @@ public:
 	) const {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+		glm::mat4 identity = glm::identity<glm::mat4>();
+
 		// Basic renderer
 		glUseProgram(this->basic_shader_program.id);
+		glBindVertexArray(this->generic_vao);
 		Asset::Texture_ID cache_texture_id = Asset::Texture_ID::none;
-		glm::mat4 identity = glm::mat4(1.0f);
 		for (const Sprite &sprite : state.sprites) {
 			const Asset::Texture &texture = Asset::get_texture(sprite.texture);
 
@@ -138,7 +192,46 @@ public:
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 		}
 
+		// Fetch all font characters and calculate the total width.
+		float total_width = 0;
+		Array<const Font_Face_Character *, 128> characters;
+		{
+			int i = 0;
+			char c = state.score_text.text[i];
+			while (c != '\0') {
+				const Font_Face_Character *character = &this->font_face.characters[(size_t)c];
+				characters.push(character);
+				total_width += character->advance_x >> 6;
+				c = state.score_text.text[++i];
+			}
+		}
+
+		// Modify the x starting position so we are the origin point of all text is at the center.
+		float x = state.score_text.position.x - total_width / 2;
+		float y = state.score_text.position.y;
+
+		glUseProgram(this->text_shader_program.id);
+		glBindVertexArray(this->text_vao);
+		for (const Font_Face_Character *character : characters) {
+			glBindTexture(GL_TEXTURE_2D, character->texture_id);
+
+			glUniform4fv(this->text_shader_program.uniform_location.text_colour, 1, &state.score_text.colour[0]);
+
+			const float y_offset = this->font_face.height * 0.5f;
+			const glm::vec3 position = glm::vec3(x + character->left, y - y_offset - (character->height - character->top), 0.0f);
+			glm::mat4 transform = glm::translate(identity, position);
+
+			const glm::vec3 size = glm::vec3(character->width, character->height, 1.0f);
+			transform = glm::scale(transform, size);
+			glUniformMatrix4fv(this->text_shader_program.uniform_location.transform, 1, GL_FALSE, &transform[0][0]);
+
+			x += character->advance_x >> 6;
+
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		}
+
 		glUseProgram(this->shape_shader_program.id);
+		glBindVertexArray(this->generic_vao);
 		for (const Shape &debug_shape : state.debug_shapes) {
 			const glm::vec4 colour = glm::vec4(1.0f, 1.0f, 1.0f, 0.5f);
 
@@ -161,12 +254,36 @@ public:
 		glFlush();
 	}
 
-	void load(unsigned char *data, Asset::Texture_ID asset_id, const Asset::Texture &texture) {
+	void load_texture(unsigned char *data, Asset::Texture_ID asset_id, const Asset::Texture &texture) {
 		const size_t asset_index = static_cast<size_t>(asset_id);
 		glBindTexture(GL_TEXTURE_2D, this->texture_indices[asset_index]);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.width, texture.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	}
+
+	void load_font(int height) {
+		this->font_face.height = height >> 6;
+	}
+
+	void load_font_character(unsigned char character, unsigned char *bitmap, int width, int height, int left, int top, int advance_x) {
+		// TODO(steven): Find out what this is actually doing.
+		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+		Font_Face_Character &font_character = this->font_face.characters[(size_t)character];
+		font_character.width = width;
+		font_character.height = height;
+		font_character.top = top;
+		font_character.left = left;
+		font_character.advance_x = advance_x;
+		glGenTextures(1, &font_character.texture_id);
+		
+		glBindTexture(GL_TEXTURE_2D, font_character.texture_id);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, font_character.width, font_character.height, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	}
@@ -227,6 +344,35 @@ private:
 		this->shape_shader_program.uniform_location.transform = glGetUniformLocation(this->shape_shader_program.id, "transform");
 		this->shape_shader_program.uniform_location.colour = glGetUniformLocation(this->shape_shader_program.id, "colour");
 		this->shape_shader_program.uniform_location.shape_type = glGetUniformLocation(this->shape_shader_program.id, "shape_type");
+	}
+
+	void create_text_shader(const Shader_Contents &contents) {
+		// Compile shaders
+		GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+		glShaderSource(vertex_shader, 1, &contents.vertex, NULL);
+		glCompileShader(vertex_shader);
+		this->log_shader_compile_error(vertex_shader, "Text Vertex");
+
+		GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+		glShaderSource(fragment_shader, 1, &contents.fragment, NULL);
+		glCompileShader(fragment_shader);
+		this->log_shader_compile_error(fragment_shader, "Text Fragment");
+
+		this->text_shader_program.id = glCreateProgram();
+		glAttachShader(this->text_shader_program.id, vertex_shader);
+		glAttachShader(this->text_shader_program.id, fragment_shader);
+		glLinkProgram(this->text_shader_program.id);
+		this->log_shader_link_error(this->text_shader_program.id, "Text");
+
+		glUseProgram(this->text_shader_program.id);
+
+		glDeleteShader(vertex_shader);
+		glDeleteShader(fragment_shader);
+
+		// Fetch uniform locations
+		this->text_shader_program.uniform_location.view_projection = glGetUniformLocation(this->text_shader_program.id, "view_projection");
+		this->text_shader_program.uniform_location.transform = glGetUniformLocation(this->text_shader_program.id, "transform");
+		this->text_shader_program.uniform_location.text_colour = glGetUniformLocation(this->text_shader_program.id, "text_color");
 	}
 
 	void set_viewport(const Application &application) {

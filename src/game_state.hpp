@@ -41,13 +41,22 @@ struct Shape {
 	};
 };
 
+struct Score_Text {
+	glm::vec2 position;
+	glm::vec4 colour;
+	char text[128];
+};
+
 struct Game_State {
 	bool play_started = false;
 	float ground_scroll = 0;
 	float hill_scroll = 0;
 	Array<Sprite, 256> sprites;
 	Bird bird;
-	Pipe_Pair pipe_pairs[2] = {};
+	std::array<Pipe_Pair, 2> pipe_pairs = {};
+	int score = 0;
+	int last_scoring_pipe_index = -1;
+	Score_Text score_text;
 
 	// Debug
 	// TODO(steven): Move elsewhere?

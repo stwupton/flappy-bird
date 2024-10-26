@@ -6,6 +6,9 @@
 #include <iostream>
 #include <string>
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -188,9 +191,16 @@ int main(int argc, char *args[]) {
 	// Get shader contents
 	Shader_Contents basic_shader_contents = get_shader_contents("basic");
 	Shader_Contents shape_shader_contents = get_shader_contents("shape");
+	Shader_Contents text_shader_contents = get_shader_contents("text");
 
 	renderer = new GL_Renderer(*platform);
-	renderer->init(*application, debug_message_handle, basic_shader_contents, shape_shader_contents); 
+	renderer->init(
+		*application, 
+		debug_message_handle, 
+		basic_shader_contents, 
+		shape_shader_contents, 
+		text_shader_contents
+	); 
 
 	// Delete shader file contents
 	free_shader_contents(&basic_shader_contents);
@@ -220,9 +230,49 @@ int main(int argc, char *args[]) {
 			return -1;
 		}
 
-		renderer->load(data, texture_id, texture);
+		renderer->load_texture(data, texture_id, texture);
 
 		stbi_image_free(data);
+	}
+
+	// Load font 
+	{
+		file_path = executable_location + "assets/fonts/PressStart2P-Regular.ttf", "rb";
+		FT_Library freetype;
+		if (FT_Init_FreeType(&freetype) != 0) {
+			SDL_Log("Could not init FreeType.");
+			return -1;
+		}
+
+		FT_Face face;
+		if (FT_New_Face(freetype, file_path.c_str(), 0, &face) != 0) {
+			SDL_Log("Could not load font: %s", file_path);
+			return -1;
+		}
+
+		FT_Set_Pixel_Sizes(face, 0, 16);
+
+		renderer->load_font(face->size->metrics.height);
+
+		for (unsigned char i = 0; i < 128; i++) {
+			if (FT_Load_Char(face, i, FT_LOAD_RENDER) != 0) {
+				SDL_Log("Could not load glyph: %c, in font: %s", i, file_path);
+				return -1;
+			}
+
+			renderer->load_font_character(
+				i, 
+				face->glyph->bitmap.buffer, 
+				face->glyph->bitmap.width, 
+				face->glyph->bitmap.rows, 
+				face->glyph->bitmap_left,
+				face->glyph->bitmap_top, 
+				face->glyph->advance.x
+			);
+		}
+
+		FT_Done_Face(face);
+		FT_Done_FreeType(freetype);
 	}
 
 	game_state = new Game_State();

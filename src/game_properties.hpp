@@ -29,4 +29,8 @@ namespace Game_Properties {
 	} floor_collision;
 	const float scroll_speed = 100.f;
 	const float hill_scroll_modifier = .2f;
+	const struct {
+		const glm::vec2 position = glm::vec2(0.0f, view.height / 2 - 20.0f);
+		const glm::vec4 colour = glm::vec4(7.0f / 255, 54.0f / 255, 66.0f / 255, 1.0f);
+	} score;
 };
