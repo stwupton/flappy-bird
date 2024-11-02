@@ -18,6 +18,8 @@
 
 # Stretch goals:
 
+- [ ] Interpolate state in game loop.
+- [ ] Don't do fullscreen by default. Add F11 key to go fullscreen.
 - [ ] Track the high-score between play sessions and display the high score at the start.
 - [ ] Add some sounds that will play each time the player gains a point, and when the player loses.
 - [x] Add some background art! Try layering the background and scrolling at a different rate to the foreground obstacles. This is called Parallax scrolling.

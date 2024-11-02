@@ -15,6 +15,21 @@ struct Game {
 		// Setup the initial pipe positions when we start playing
 		setup_pipe(&state->pipe_pairs[0], Game_Properties::pipe.x_spacing);
 		setup_pipe(&state->pipe_pairs[1], Game_Properties::pipe.x_spacing * 2);
+
+		// Setup initial clouds
+		for (size_t i = 0; i < state->clouds.size(); i++) {
+			Cloud &cloud = state->clouds[0];
+			cloud.type = rand() % 2 == 0 ? Cloud::Type::one : Cloud::Type::two;
+			cloud.speed_scale = rand_range(
+				Game_Properties::cloud.speed_scale_min, 
+				Game_Properties::cloud.speed_scale_max
+			),
+			cloud.position = glm::vec2(
+				rand_range(Game_Properties::cloud.x_min, Game_Properties::cloud.x_max),
+				rand_range(Game_Properties::cloud.y_min, Game_Properties::cloud.y_max)
+			);
+			cloud.scale = get_random_cloud_scale(i, state->clouds.size());
+		}
 	}
 
 	static void update(Game_State *state, Input *input, float delta) {
@@ -29,6 +44,7 @@ struct Game {
 		}
 
 		sky(state);
+		clouds(state, delta);
 		hills(state, delta);
 		pipe(state, delta);
 		ground(state, delta);
@@ -39,6 +55,58 @@ struct Game {
 	}
 
 private:
+	static float rand_range(float min, float max) {
+		return (float)rand() / RAND_MAX * (max + min * -1) + min;
+	}
+
+	static float get_random_cloud_scale(size_t index, size_t length) {
+		const float scale_range = Game_Properties::cloud.scale_max + Game_Properties::cloud.scale_min * -1;
+		const float scale_section = scale_range / length;
+		const float min = scale_section * index + Game_Properties::cloud.scale_min;
+		const float max = min + scale_section;
+		return rand_range(min, max);
+	}
+
+	static void clouds(Game_State *state, float delta) {
+		for (size_t i = 0; i < state->clouds.size(); i++) {
+			Cloud &cloud = state->clouds[i];
+
+			cloud.position.x -= Game_Properties::cloud.scroll_speed * cloud.speed_scale * delta;
+			if (is_scrolling(*state)) { 
+				cloud.position.x -= Game_Properties::scroll_speed * Game_Properties::cloud.scroll_modifier * delta;
+			}
+
+			Asset::Texture_ID cloud_texture_id;
+			switch (cloud.type) {
+				case Cloud::Type::one: {
+					cloud_texture_id = Asset::Texture_ID::cloud1;
+				} break;
+				case Cloud::Type::two: {
+					cloud_texture_id = Asset::Texture_ID::cloud2;
+				} break;
+			}
+
+			Sprite cloud_sprite = { .texture = cloud_texture_id };
+			cloud_sprite.transform = glm::translate(cloud_sprite.transform, glm::vec3(cloud.position.x, cloud.position.y, 0.0f));
+			cloud_sprite.transform = glm::scale(cloud_sprite.transform, glm::vec3(cloud.scale, cloud.scale, 1.0f));
+			state->sprites.push(cloud_sprite);
+
+			// Recycle cloud 
+			if (cloud.position.x <= Game_Properties::cloud.x_min) {
+				cloud.type = rand() % 2 == 0 ? Cloud::Type::one : Cloud::Type::two;
+				cloud.speed_scale = rand_range(
+					Game_Properties::cloud.speed_scale_min, 
+					Game_Properties::cloud.speed_scale_max
+				),
+				cloud.position = glm::vec2(
+					Game_Properties::cloud.x_max,
+					rand_range(Game_Properties::cloud.y_min, Game_Properties::cloud.y_max)
+				);
+				cloud.scale = get_random_cloud_scale(i, state->clouds.size());
+			}
+		}
+	}
+
 	static void debug_collision_shapes(Game_State *state) {
 		state->debug_shapes = {};
 
@@ -134,7 +202,7 @@ private:
 		const Asset::Texture ground_texture = Asset::get_texture(Asset::Texture_ID::ground);
 
 		// Scroll floor
-		if (state->play_started && !state->bird.is_colliding) {
+		if (is_scrolling(*state)) {
 			state->ground_scroll += delta * Game_Properties::scroll_speed;
 			if (state->ground_scroll >= ground_texture.width) {
 				state->ground_scroll -= ground_texture.width;
@@ -163,7 +231,7 @@ private:
 		const Asset::Texture hills_texture = Asset::get_texture(Asset::Texture_ID::hills);
 
 		// Scroll hills
-		if (state->play_started && !state->bird.is_colliding) {
+		if (is_scrolling(*state)) {
 			state->hill_scroll += delta * Game_Properties::scroll_speed * Game_Properties::hill_scroll_modifier;
 			if (state->hill_scroll >= hills_texture.width) {
 				state->hill_scroll -= hills_texture.width;
@@ -188,6 +256,10 @@ private:
 			glm::vec3(start.x - state->hill_scroll + hills_texture.width, start.y, 0.0f)
 		);
 		state->sprites.push(hills_overflow);
+	}
+
+	static bool is_scrolling(const Game_State &state) {
+		return state.play_started && !state.bird.is_colliding;
 	}
 	
 	static void bird(Game_State *state, Input *input, float delta) {
@@ -232,7 +304,7 @@ private:
 
 		for (Pipe_Pair &pair : state->pipe_pairs) {
 			// Update x position
-			if (state->play_started && !state->bird.is_colliding) {
+			if (is_scrolling(*state)) {
 				pair.x -= Game_Properties::scroll_speed * delta;
 			}
 
@@ -275,7 +347,7 @@ private:
 
 		state->score_text.position = Game_Properties::score.position;
 		state->score_text.colour = Game_Properties::score.colour;
-		_itoa(state->score, state->score_text.text, 10);
+		_itoa_s(state->score, state->score_text.text, 10);
 	}
 
 	static void setup_pipe(Pipe_Pair *pair, float x) {

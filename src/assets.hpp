@@ -4,6 +4,8 @@
 
 namespace Asset {
 	enum class Texture_ID {
+		cloud1,
+		cloud2,
 		bird,
 		ground,
 		pipe,
@@ -20,6 +22,8 @@ namespace Asset {
 	};
 
 	namespace _Texture_File_Locations {
+		static const char *cloud1 = "assets/images/cloud1.png";
+		static const char *cloud2 = "assets/images/cloud2.png";
 		static const char *bird = "assets/images/bird.png";
 		static const char *ground = "assets/images/ground.png";
 		static const char *pipe = "assets/images/pipe.png";
@@ -28,6 +32,8 @@ namespace Asset {
 	};
 
 	inline std::array<Texture, (size_t)Texture_ID::_length> texture_data = {
+		Texture { .location = _Texture_File_Locations::cloud1 },
+		Texture { .location = _Texture_File_Locations::cloud2 },
 		Texture { .location = _Texture_File_Locations::bird },
 		Texture { .location = _Texture_File_Locations::ground },
 		Texture { .location = _Texture_File_Locations::pipe },

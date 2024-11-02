@@ -4,6 +4,7 @@
 
 #include "assets.hpp"
 #include "array.hpp"
+#include "game_properties.hpp"
 #include "size.hpp"
 
 struct Sprite {
@@ -47,7 +48,19 @@ struct Score_Text {
 	char text[128];
 };
 
+struct Cloud {
+	enum class Type {
+		one, two
+	};
+
+	float speed_scale = 1.0f;
+	glm::vec2 position;
+	float scale = 1.0f;
+	Type type;
+};
+
 struct Game_State {
+	std::array<Cloud, 5> clouds = {};
 	bool play_started = false;
 	float ground_scroll = 0;
 	float hill_scroll = 0;
