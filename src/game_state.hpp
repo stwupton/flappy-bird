@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include <glm/glm.hpp>
 
 #include "assets.hpp"
@@ -42,10 +44,11 @@ struct Shape {
 	};
 };
 
-struct Score_Text {
+struct Text {
 	glm::vec2 position;
 	glm::vec4 colour;
-	char text[128];
+	float scale = 1.0f;
+	std::string text;
 };
 
 struct Cloud {
@@ -69,7 +72,7 @@ struct Game_State {
 	std::array<Pipe_Pair, 2> pipe_pairs = {};
 	int score = 0;
 	int last_scoring_pipe_index = -1;
-	Score_Text score_text;
+	Array<Text, 2> text;
 
 	// Debug
 	// TODO(steven): Move elsewhere?

@@ -7,6 +7,8 @@
 
 #include "game_properties.hpp"
 #include "game_state.hpp"
+#include "persistent_game_state.hpp"
+#include "platform.hpp"
 #include "input.hpp"
 #include "intersection.hpp"
 
@@ -32,11 +34,18 @@ struct Game {
 		}
 	}
 
-	static void update(Game_State *state, Input *input, float delta) {
-		// Clear the sprites
+	static void update(
+		Game_State *state, 
+		Input *input, 
+		Persistent_Game_State *persistent_state, 
+		Platform *platform,
+		float delta
+	) {
+		// Clear the sprites and text
 		state->sprites = {};
+		state->text = {};
 
-		handle_game_reset(state, input);
+		handle_game_reset(state, persistent_state, platform, input);
 
 		// Handle first flap
 		if (!state->play_started && input->flap) {
@@ -49,7 +58,7 @@ struct Game {
 		pipe(state, delta);
 		ground(state, delta);
 		bird(state, input, delta);
-		score(state);
+		score(state, persistent_state);
 		detect_collisions(state);
 		debug_collision_shapes(state);
 	}
@@ -185,13 +194,23 @@ private:
 		}
 	}
 
-	static void handle_game_reset(Game_State *state, Input *input) {
+	static void handle_game_reset(
+		Game_State *state, 
+		Persistent_Game_State *persistent_state, 
+		Platform *platform, 
+		Input *input
+	) {
 		if (!state->bird.is_colliding) {
 			return;
 		}
 
 		const bool should_reset = state->bird.position.y <= -Game_Properties::view.height;
 		if (should_reset) {
+			if (state->score > persistent_state->high_score) {
+				persistent_state->high_score = state->score;
+				platform->save_high_score(persistent_state->high_score);
+			}
+
 			*state = {};
 			*input = {};
 			setup(state);
@@ -335,19 +354,37 @@ private:
 		}
 	}
 
-	static void score(Game_State *state) {
-		// Update score
-		// TODO(steven): Can this be better?
-		for (int i = 0; i < state->pipe_pairs.size(); i++) {
-			if (state->pipe_pairs[i].x <= 0 && state->last_scoring_pipe_index != i) {
-				state->last_scoring_pipe_index = i;
-				state->score++;
+	static void score(
+		Game_State *state, 
+		Persistent_Game_State *persistent_state
+	) {
+		int score = persistent_state->high_score;
+
+		if (state->play_started) {
+			// Update score
+			// TODO(steven): Can this be better?
+			for (int i = 0; i < state->pipe_pairs.size(); i++) {
+				if (state->pipe_pairs[i].x <= 0 && state->last_scoring_pipe_index != i) {
+					state->last_scoring_pipe_index = i;
+					state->score++;
+				}
 			}
+
+			score = state->score;
+		} else {
+			Text high_score_label = {};
+			high_score_label.position = Game_Properties::score_label.position;
+			high_score_label.colour = Game_Properties::score_label.colour;
+			high_score_label.scale = Game_Properties::score_label.scale;
+			high_score_label.text = "HIGH SCORE";
+			state->text.push(high_score_label);
 		}
 
-		state->score_text.position = Game_Properties::score.position;
-		state->score_text.colour = Game_Properties::score.colour;
-		_itoa_s(state->score, state->score_text.text, 10);
+		Text score_text = {};
+		score_text.position = Game_Properties::score.position;
+		score_text.colour = Game_Properties::score.colour;
+		score_text.text = std::to_string(score);
+		state->text.push(score_text);
 	}
 
 	static void setup_pipe(Pipe_Pair *pair, float x) {

@@ -193,41 +193,47 @@ public:
 		}
 
 		// Fetch all font characters and calculate the total width.
-		float total_width = 0;
-		Array<const Font_Face_Character *, 128> characters;
-		{
-			int i = 0;
-			char c = state.score_text.text[i];
-			while (c != '\0') {
-				const Font_Face_Character *character = &this->font_face.characters[(size_t)c];
-				characters.push(character);
-				total_width += character->advance_x >> 6;
-				c = state.score_text.text[++i];
+		for (const Text &text : state.text) {
+			float total_width = 0;
+			Array<const Font_Face_Character *, 128> characters;
+			{
+				int i = 0;
+				char c = text.text[i];
+				while (c != '\0') {
+					const Font_Face_Character *character = &this->font_face.characters[(size_t)c];
+					characters.push(character);
+					total_width += (character->advance_x >> 6) * text.scale;
+					c = text.text[++i];
+				}
 			}
-		}
 
-		// Modify the x starting position so we are the origin point of all text is at the center.
-		float x = state.score_text.position.x - total_width / 2;
-		float y = state.score_text.position.y;
+			// Modify the x starting position so we are the origin point of all text is at the center.
+			float x = text.position.x - total_width / 2;
+			float y = text.position.y;
 
-		glUseProgram(this->text_shader_program.id);
-		glBindVertexArray(this->text_vao);
-		for (const Font_Face_Character *character : characters) {
-			glBindTexture(GL_TEXTURE_2D, character->texture_id);
+			glUseProgram(this->text_shader_program.id);
+			glBindVertexArray(this->text_vao);
+			for (const Font_Face_Character *character : characters) {
+				glBindTexture(GL_TEXTURE_2D, character->texture_id);
 
-			glUniform4fv(this->text_shader_program.uniform_location.text_colour, 1, &state.score_text.colour[0]);
+				glUniform4fv(this->text_shader_program.uniform_location.text_colour, 1, &text.colour[0]);
 
-			const float y_offset = this->font_face.height * 0.5f;
-			const glm::vec3 position = glm::vec3(x + character->left, y - y_offset - (character->height - character->top), 0.0f);
-			glm::mat4 transform = glm::translate(identity, position);
+				const float y_offset = this->font_face.height / 2 * text.scale;
+				const glm::vec3 position = glm::vec3(
+					x + character->left * text.scale, 
+					y - y_offset - (character->height - character->top) * text.scale, 
+					0.0f
+				);
+				glm::mat4 transform = glm::translate(identity, position);
 
-			const glm::vec3 size = glm::vec3(character->width, character->height, 1.0f);
-			transform = glm::scale(transform, size);
-			glUniformMatrix4fv(this->text_shader_program.uniform_location.transform, 1, GL_FALSE, &transform[0][0]);
+				const glm::vec3 size = glm::vec3(character->width * text.scale, character->height * text.scale, 1.0f);
+				transform = glm::scale(transform, size);
+				glUniformMatrix4fv(this->text_shader_program.uniform_location.transform, 1, GL_FALSE, &transform[0][0]);
 
-			x += character->advance_x >> 6;
+				x += (character->advance_x >> 6) * text.scale;
 
-			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+				glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+			}
 		}
 
 		glUseProgram(this->shape_shader_program.id);

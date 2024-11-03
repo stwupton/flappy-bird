@@ -14,6 +14,7 @@
 
 #include "application.hpp"
 #include "game.hpp"
+#include "persistent_game_state.hpp"
 #include "game_state.hpp"
 #include "gl_renderer.hpp"
 #include "input.hpp"
@@ -22,6 +23,7 @@
 static GL_Renderer *renderer = nullptr;
 static Application *application = nullptr;
 static SDL_Platform *platform = nullptr;
+static Persistent_Game_State *persistent_game_state = nullptr;
 static Game_State *game_state = nullptr;
 static Input *input = nullptr;
 
@@ -280,6 +282,9 @@ int main(int argc, char *args[]) {
 
 	input = new Input();
 
+	persistent_game_state = new Persistent_Game_State();
+	persistent_game_state->high_score = platform->get_high_score();
+
 	Uint64 previous_time = SDL_GetTicks64();
 	float time_accumulator = 0;
 	float sim_speed = 1;
@@ -325,7 +330,7 @@ int main(int argc, char *args[]) {
 
 		while (time_accumulator >= Game_Properties::sim_time_ms) {
 			time_accumulator -= Game_Properties::sim_time_ms;
-			Game::update(game_state, input, Game_Properties::sim_time_s);
+			Game::update(game_state, input, persistent_game_state, platform, Game_Properties::sim_time_s);
 		}
 
 		renderer->render(*application, *game_state);

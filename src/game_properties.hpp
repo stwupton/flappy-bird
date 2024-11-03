@@ -12,6 +12,7 @@ namespace Game_Properties {
 		const size_t count = 5;
 		const float x_min = -(float)view.width;
 		const float x_max = (float)view.width;
+		// TODO(steven): y_min doesn't seem to be working
 		const float y_min = 64.0f;
 		const float y_max = (float)view.height / 2;
 		const float speed_scale_min = 0.5f;
@@ -51,7 +52,13 @@ namespace Game_Properties {
 	const float hill_scroll_modifier = .2f;
 
 	const struct {
-		const glm::vec2 position = glm::vec2(0.0f, (float)view.height / 2 - 20.0f);
+		const glm::vec2 position = glm::vec2(0.0f, (float)view.height / 2 - 40.0f);
 		const glm::vec4 colour = glm::vec4(7.0f / 255, 54.0f / 255, 66.0f / 255, 1.0f);
 	} score;
+
+	const struct {
+		const glm::vec2 position = glm::vec2(0.0f, (float)view.height / 2 - 20.0f);
+		const glm::vec4 colour = glm::vec4(7.0f / 255, 54.0f / 255, 66.0f / 255, 1.0f);
+		const float scale = 0.5f;
+	} score_label;
 };
