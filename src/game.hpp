@@ -376,14 +376,14 @@ private:
 			high_score_label.position = Game_Properties::score_label.position;
 			high_score_label.colour = Game_Properties::score_label.colour;
 			high_score_label.scale = Game_Properties::score_label.scale;
-			high_score_label.text = "HIGH SCORE";
+			sprintf(high_score_label.text, "%s", "HIGH SCORE");
 			state->text.push(high_score_label);
 		}
 
 		Text score_text = {};
 		score_text.position = Game_Properties::score.position;
 		score_text.colour = Game_Properties::score.colour;
-		score_text.text = std::to_string(score);
+		sprintf(score_text.text, "%d", score);
 		state->text.push(score_text);
 	}
 

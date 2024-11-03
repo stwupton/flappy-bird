@@ -1,7 +1,5 @@
 #pragma once
 
-#include <string>
-
 #include <glm/glm.hpp>
 
 #include "assets.hpp"
@@ -48,7 +46,7 @@ struct Text {
 	glm::vec2 position;
 	glm::vec4 colour;
 	float scale = 1.0f;
-	std::string text;
+	char text[128];
 };
 
 struct Cloud {
