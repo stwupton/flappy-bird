@@ -71,6 +71,7 @@ public:
 
 private:
 	Platform &platform;
+	Size<int> cached_window_size;
 
 public:
 	GL_Renderer(Platform &platform) : platform{platform} {}
@@ -167,7 +168,9 @@ public:
 	void render(
 		const Application &application, 
 		const Game_State &state
-	) const {
+	) {
+		this->set_viewport(application);
+
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glm::mat4 identity = glm::identity<glm::mat4>();
@@ -382,6 +385,13 @@ private:
 	}
 
 	void set_viewport(const Application &application) {
+		if (application.window == cached_window_size) {
+			return;
+		} else {
+			this->cached_window_size = application.window;
+			this->log("%d, %d", application.window.width, application.window.height);
+		}
+
 		const float window_aspect_ratio = (float)application.window.width / application.window.height;
 
 		// TODO(steven): Define the game screen size somewhere else

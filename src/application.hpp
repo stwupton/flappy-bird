@@ -1,5 +1,7 @@
 #pragma once 
 
+#include "size.hpp"
+
 struct Application {
-	struct { int width; int height; } window;
+	Size<int> window = {};
 };

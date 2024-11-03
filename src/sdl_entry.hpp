@@ -75,57 +75,6 @@ void free_shader_contents(Shader_Contents *contents) {
 	free((void *)contents->fragment);
 }
 
-int get_display_bounds(SDL_Rect *display_bounds) {
-	int success;
-
-	int display_index = -1;
-	int display_score = 0;
-	SDL_DisplayMode display_mode;
-
-	const int num_video_displays = SDL_GetNumVideoDisplays();
-	for (int i = 0; i < num_video_displays; i++) {
-		SDL_DisplayMode this_display_mode; 
-
-		success = SDL_GetDesktopDisplayMode(i, &this_display_mode);
-		if (success != 0) {
-			return success;
-		}
-
-		const float aspect_ratio = (float)this_display_mode.w / this_display_mode.h;
-
-		// TODO(steven): Temp algorithm to select display device. Make it better.
-		// TODO(steven): Change to look for a portrait screen first. Atm it's looking for landscape.
-		const int this_display_score = 
-			this_display_mode.w * 
-			this_display_mode.h * 
-			this_display_mode.refresh_rate *
-			aspect_ratio;
-		// const int this_display_score = 
-		// 	this_display_mode.w * 
-		// 	this_display_mode.h * 
-		// 	this_display_mode.refresh_rate;
-
-		if (this_display_score > display_score) {
-			display_score = this_display_score;
-			display_mode = this_display_mode;
-			display_index = i;
-		}
-	}
-
-	const char *display_name = SDL_GetDisplayName(display_index);
-	SDL_Log(
-		"display name: %s, format: %d, width: %d, height: %d, refresh rate: %d", 
-		display_name, 
-		display_mode.format,
-		display_mode.w,
-		display_mode.h,
-		display_mode.refresh_rate
-	);
-
-	success = SDL_GetDisplayBounds(display_index, display_bounds);
-	return success;
-}
-
 // Must have the main standard arguments for SDL to work.
 int main(int argc, char *args[]) {
 	int success = SDL_Init(SDL_INIT_VIDEO);
@@ -134,14 +83,14 @@ int main(int argc, char *args[]) {
 		return -1;
 	}
 
-	SDL_Rect display_bounds; 
-	success = get_display_bounds(&display_bounds);
+	SDL_Rect display_bounds;
+	success = SDL_GetDisplayBounds(0, &display_bounds);
 	if (success != 0) {
 		SDL_Log(SDL_GetError());
 		return -1;
 	}
 
-	const int window_flags = SDL_WINDOW_FULLSCREEN | SDL_WINDOW_OPENGL;
+	const int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_MAXIMIZED;
 	SDL_Window *window = SDL_CreateWindow(
 		"Flappy Bird", 
 		display_bounds.x, 
@@ -295,10 +244,6 @@ int main(int argc, char *args[]) {
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_EventType::SDL_KEYDOWN) {
 				switch (event.key.keysym.sym) {
-					case SDLK_ESCAPE: {
-						should_close = true;
-					} break;
-
 					case SDLK_MINUS: {
 						sim_speed -= sim_speed <= 1.0f ? 0.1f : 1.0f;
 						sim_speed = fmaxf(0.0f, sim_speed);
@@ -312,6 +257,16 @@ int main(int argc, char *args[]) {
 					case SDLK_d: {
 						game_state->show_collision_debugger = !game_state->show_collision_debugger;
 					} break;
+
+					case SDLK_F11: {
+						const bool is_fullscreen = SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN;
+						if (is_fullscreen) {
+							SDL_SetWindowResizable(window, SDL_TRUE);
+							SDL_SetWindowFullscreen(window, 0);
+						} else {
+							SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+						}
+					} break;
 				}
 			} else if (event.type == SDL_EventType::SDL_MOUSEBUTTONDOWN) {
 				if (event.button.button == 1) {
@@ -321,6 +276,14 @@ int main(int argc, char *args[]) {
 				if (event.button.button == 1) {
 					input->input_up();
 				}
+			} else if (event.type == SDL_EventType::SDL_QUIT) {
+				should_close = true;
+			} else if (
+				event.type == SDL_EventType::SDL_WINDOWEVENT && 
+				event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED
+			) {
+				application->window.width = event.window.data1;
+				application->window.height = event.window.data2;
 			}
 		}
 

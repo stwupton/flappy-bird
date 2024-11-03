@@ -18,6 +18,7 @@
 
 # Stretch goals:
 
+- [ ] BUG - There is a flicker on the sides of the viewport when exiting fullscreen.
 - [ ] Interpolate state in game loop.
 - [ ] Don't do fullscreen by default. Add F11 key to go fullscreen.
 - [x] Track the high-score between play sessions and display the high score at the start.
