@@ -12,7 +12,6 @@ namespace Game_Properties {
 		const size_t count = 5;
 		const float x_min = -(float)view.width;
 		const float x_max = (float)view.width;
-		// TODO(steven): y_min doesn't seem to be working
 		const float y_min = 64.0f;
 		const float y_max = (float)view.height / 2;
 		const float speed_scale_min = 0.5f;

@@ -20,7 +20,7 @@ struct Game {
 
 		// Setup initial clouds
 		for (size_t i = 0; i < state->clouds.size(); i++) {
-			Cloud &cloud = state->clouds[0];
+			Cloud &cloud = state->clouds[i];
 			cloud.type = rand() % 2 == 0 ? Cloud::Type::one : Cloud::Type::two;
 			cloud.speed_scale = rand_range(
 				Game_Properties::cloud.speed_scale_min, 
