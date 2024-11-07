@@ -77,6 +77,7 @@ public:
 	GL_Renderer(Platform &platform) : platform{platform} {}
 
 	void init(
+		// TODO(steven): remove application
 		const Application &application,
 		GLDEBUGPROC debug_message_handle, 
 		const Shader_Contents &basic_shader_contents,
@@ -90,9 +91,7 @@ public:
 		glEnable(GL_DEBUG_OUTPUT);
 		glDebugMessageCallback(debug_message_handle, 0);
 
-		glEnable(GL_SCISSOR_TEST);
-
-		glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
 		// Set up view projection transform and add it to the shader
 		const float left = -((float)Game_Properties::view.width / 2);
@@ -161,8 +160,6 @@ public:
 
 		glEnableVertexAttribArray(1);
 		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-
-		this->set_viewport(application);
 	}
 
 	void render(
@@ -259,8 +256,6 @@ public:
 			glUniform1i(this->shape_shader_program.uniform_location.shape_type, (GLint)debug_shape.type);
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 		}
-
-		glFlush();
 	}
 
 	void load_texture(unsigned char *data, Asset::Texture_ID asset_id, const Asset::Texture &texture) {
@@ -393,8 +388,6 @@ private:
 		}
 
 		const float window_aspect_ratio = (float)application.window.width / application.window.height;
-
-		// TODO(steven): Define the game screen size somewhere else
 		const float view_aspect_ratio = (float)Game_Properties::view.width / Game_Properties::view.height;
 		
 		GLsizei viewport_height;
@@ -413,7 +406,6 @@ private:
 		const GLsizei viewport_y = application.window.height / 2 - viewport_height / 2;
 
 		glViewport(viewport_x, viewport_y, viewport_width, viewport_height);
-		glScissor(viewport_x, viewport_y, viewport_width, viewport_height);
 	}
 
 	void log(const char *format, ...) const {

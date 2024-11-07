@@ -90,6 +90,10 @@ int main(int argc, char *args[]) {
 		return -1;
 	}
 
+	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+
 	const int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_MAXIMIZED;
 	SDL_Window *window = SDL_CreateWindow(
 		"Flappy Bird", 
@@ -104,16 +108,19 @@ int main(int argc, char *args[]) {
 		return -1;
 	}
 
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 	SDL_GLContext gl_context = SDL_GL_CreateContext(window);
 	if (gl_context == NULL) {
 		SDL_Log(SDL_GetError());
 		return -1;
 	}
 
+	if (glewInit() != GLEW_OK) {
+		SDL_Log("Could not initialise GLEW.");
+		return -1;
+	}
+
 	success = SDL_GL_SetSwapInterval(-1);
-	
+
 	const bool vsync_not_supported = success == -1;
 	if (vsync_not_supported) {
 		success = SDL_GL_SetSwapInterval(1);
@@ -121,11 +128,6 @@ int main(int argc, char *args[]) {
 
 	if (success != 0) {
 		SDL_Log(SDL_GetError());
-		return -1;
-	}
-
-	if (glewInit() != GLEW_OK) {
-		SDL_Log("Could not initialise GLEW.");
 		return -1;
 	}
 
@@ -259,7 +261,7 @@ int main(int argc, char *args[]) {
 					} break;
 
 					case SDLK_F11: {
-						const bool is_fullscreen = SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN;
+						const bool is_fullscreen = SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP;
 						if (is_fullscreen) {
 							SDL_SetWindowResizable(window, SDL_TRUE);
 							SDL_SetWindowFullscreen(window, 0);
