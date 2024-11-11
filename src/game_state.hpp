@@ -8,72 +8,83 @@
 #include "size.hpp"
 
 struct Sprite {
-	glm::mat4 transform = glm::mat4(1.f);
 	Asset::Texture_ID texture;
+	glm::mat4 transform = glm::mat4(1.f);
 };
 
-struct Bird {
+struct Entity {
+	// Version ID to keep track if it's the same entity as before. It is commonly
+	// changed when recycling the entity when it leaves the view.
+	int version = 0;
+
+	glm::vec2 position = glm::vec2(0.0f);
+	float rotation = 0.0f;
+	glm::vec2 scale = glm::vec2(1.0f);
+
+	// Used to interpolate entities from the previous state only if they are the
+	// same version.
+	Entity lerp(const Entity &from, float alpha) const {
+		if (this->version == from.version) {
+			return Entity {
+				.position = glm::mix(from.position, this->position, alpha),
+				.rotation = glm::mix(from.rotation, this->rotation, alpha),
+				.scale = glm::mix(from.scale, this->scale, alpha),
+			};
+		}
+
+		return *this;
+	}
+
+	glm::mat4 get_transform() const {
+		glm::mat4 transform = glm::identity<glm::mat4>();
+		transform = glm::translate(transform, glm::vec3(this->position.x, this->position.y, 0.0f));
+		transform = glm::rotate(transform, this->rotation, glm::vec3(0.0f, 0.0f, 1.0f));
+		transform = glm::scale(transform, glm::vec3(this->scale.x, this->scale.y, 1.0f));
+		return transform;
+	}
+};
+
+struct Bird : Entity {
 	float y_velocity;
-	glm::vec3 position = glm::vec3(0.0f);
 	bool is_colliding = false;
 };
 
-struct Pipe {
-	float y;
-};
+struct Pipe : Entity {};
 
 struct Pipe_Pair {
-	float x;
+	float shared_x = 0.0f;
 	Pipe top, bottom;
 };
 
-enum class Shape_Type {
-	rectangle,
-	circle
-};
-
-struct Shape {
-	glm::mat4 transform = glm::mat4(1.0f);
-	Shape_Type type;
-	glm::vec4 colour = glm::vec4(0.0f);
-	union {
-		struct { float radius; } circle;
-		Size<float> rectangle = {};
-	};
-};
-
-struct Text {
-	glm::vec2 position;
+struct Text : Entity {
 	glm::vec4 colour;
-	float scale = 1.0f;
 	char text[128];
 };
 
-struct Cloud {
+struct Cloud : Entity {
 	enum class Type {
 		one, two
 	};
 
 	float speed_scale = 1.0f;
-	glm::vec2 position;
-	float scale = 1.0f;
 	Type type;
 };
 
+struct Hill : Entity {};
+
+struct Ground : Entity {};
+
 struct Game_State {
-	std::array<Cloud, 5> clouds = {};
 	bool play_started = false;
-	float ground_scroll = 0;
-	float hill_scroll = 0;
-	Array<Sprite, 256> sprites;
-	Bird bird;
-	std::array<Pipe_Pair, 2> pipe_pairs = {};
 	int score = 0;
 	int last_scoring_pipe_index = -1;
-	Array<Text, 2> text;
 
-	// Debug
-	// TODO(steven): Move elsewhere?
-	bool show_collision_debugger = false;
-	Array<Shape, 16> debug_shapes;
+	Bird bird;
+	std::array<Cloud, 5> clouds = {};
+	std::array<Hill, 2> hills;
+	std::array<Pipe_Pair, 2> pipe_pairs = {};
+	std::array<Ground, 9> grounds;
+
+	Array<Sprite, 256> sprites;
+	Array<Text, 2> text;
 };

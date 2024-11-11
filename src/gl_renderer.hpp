@@ -13,6 +13,7 @@
 #include "game_properties.hpp"
 #include "game_state.hpp"
 #include "platform.hpp"
+#include "debug_state.hpp"
 
 struct Basic_Shader_Program {
 	GLuint id;
@@ -71,14 +72,15 @@ public:
 
 private:
 	Platform &platform;
+	Application &application;
 	Size<int> cached_window_size;
 
 public:
-	GL_Renderer(Platform &platform) : platform{platform} {}
+	GL_Renderer(Application &application, Platform &platform) : 
+		application{application}, 
+		platform{platform} {}
 
 	void init(
-		// TODO(steven): remove application
-		const Application &application,
 		GLDEBUGPROC debug_message_handle, 
 		const Shader_Contents &basic_shader_contents,
 		const Shader_Contents &shape_shader_contents,
@@ -162,11 +164,8 @@ public:
 		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 	}
 
-	void render(
-		const Application &application, 
-		const Game_State &state
-	) {
-		this->set_viewport(application);
+	void render(const Game_State &state, const Debug_State &debug_state) {
+		this->set_viewport();
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -202,7 +201,7 @@ public:
 				while (c != '\0') {
 					const Font_Face_Character *character = &this->font_face.characters[(size_t)c];
 					characters.push(character);
-					total_width += (character->advance_x >> 6) * text.scale;
+					total_width += (character->advance_x >> 6) * text.scale.x;
 					c = text.text[++i];
 				}
 			}
@@ -218,19 +217,19 @@ public:
 
 				glUniform4fv(this->text_shader_program.uniform_location.text_colour, 1, &text.colour[0]);
 
-				const float y_offset = this->font_face.height / 2 * text.scale;
+				const float y_offset = this->font_face.height / 2 * text.scale.y;
 				const glm::vec3 position = glm::vec3(
-					x + character->left * text.scale, 
-					y - y_offset - (character->height - character->top) * text.scale, 
+					x + character->left * text.scale.x, 
+					y - y_offset - (character->height - character->top) * text.scale.y, 
 					0.0f
 				);
 				glm::mat4 transform = glm::translate(identity, position);
 
-				const glm::vec3 size = glm::vec3(character->width * text.scale, character->height * text.scale, 1.0f);
+				const glm::vec3 size = glm::vec3(character->width * text.scale.x, character->height * text.scale.y, 1.0f);
 				transform = glm::scale(transform, size);
 				glUniformMatrix4fv(this->text_shader_program.uniform_location.transform, 1, GL_FALSE, &transform[0][0]);
 
-				x += (character->advance_x >> 6) * text.scale;
+				x += (character->advance_x >> 6) * text.scale.x;
 
 				glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 			}
@@ -238,7 +237,7 @@ public:
 
 		glUseProgram(this->shape_shader_program.id);
 		glBindVertexArray(this->generic_vao);
-		for (const Shape &debug_shape : state.debug_shapes) {
+		for (const Shape &debug_shape : debug_state.debug_shapes) {
 			const glm::vec4 colour = glm::vec4(1.0f, 1.0f, 1.0f, 0.5f);
 
 			glm::mat4 scale_transform;
@@ -379,15 +378,15 @@ private:
 		this->text_shader_program.uniform_location.text_colour = glGetUniformLocation(this->text_shader_program.id, "text_color");
 	}
 
-	void set_viewport(const Application &application) {
-		if (application.window == cached_window_size) {
+	void set_viewport() {
+		if (this->application.window == cached_window_size) {
 			return;
 		} else {
-			this->cached_window_size = application.window;
-			this->log("%d, %d", application.window.width, application.window.height);
+			this->cached_window_size = this->application.window;
+			this->log("%d, %d", this->application.window.width, this->application.window.height);
 		}
 
-		const float window_aspect_ratio = (float)application.window.width / application.window.height;
+		const float window_aspect_ratio = (float)this->application.window.width / this->application.window.height;
 		const float view_aspect_ratio = (float)Game_Properties::view.width / Game_Properties::view.height;
 		
 		GLsizei viewport_height;
@@ -395,15 +394,15 @@ private:
 
 		const bool snap_to_height = window_aspect_ratio > view_aspect_ratio;
 		if (snap_to_height) {
-			viewport_height = application.window.height;
+			viewport_height = this->application.window.height;
 			viewport_width = (GLsizei)(viewport_height * view_aspect_ratio);
 		} else {
-			viewport_width = application.window.width;
+			viewport_width = this->application.window.width;
 			viewport_height = (GLsizei)(viewport_width / view_aspect_ratio);
 		}
 
-		const GLsizei viewport_x = application.window.width / 2 - viewport_width / 2;
-		const GLsizei viewport_y = application.window.height / 2 - viewport_height / 2;
+		const GLsizei viewport_x = this->application.window.width / 2 - viewport_width / 2;
+		const GLsizei viewport_y = this->application.window.height / 2 - viewport_height / 2;
 
 		glViewport(viewport_x, viewport_y, viewport_width, viewport_height);
 	}

@@ -19,12 +19,15 @@
 #include "gl_renderer.hpp"
 #include "input.hpp"
 #include "sdl_platform.hpp"
+#include "debug_state.hpp"
 
 static GL_Renderer *renderer = nullptr;
 static Application *application = nullptr;
 static SDL_Platform *platform = nullptr;
 static Persistent_Game_State *persistent_game_state = nullptr;
 static Game_State *game_state = nullptr;
+static Game_State *previous_game_state = nullptr;
+static Debug_State *debug_state = nullptr;
 static Input *input = nullptr;
 
 void debug_message_handle(
@@ -146,9 +149,8 @@ int main(int argc, char *args[]) {
 	Shader_Contents shape_shader_contents = get_shader_contents("shape");
 	Shader_Contents text_shader_contents = get_shader_contents("text");
 
-	renderer = new GL_Renderer(*platform);
+	renderer = new GL_Renderer(*application, *platform);
 	renderer->init(
-		*application, 
 		debug_message_handle, 
 		basic_shader_contents, 
 		shape_shader_contents, 
@@ -231,6 +233,11 @@ int main(int argc, char *args[]) {
 	game_state = new Game_State();
 	Game::setup(game_state);
 
+	previous_game_state = new Game_State();
+
+	// TODO(steven): Hide behind flag
+	debug_state = new Debug_State();
+
 	input = new Input();
 
 	persistent_game_state = new Persistent_Game_State();
@@ -257,7 +264,7 @@ int main(int argc, char *args[]) {
 					} break;
 
 					case SDLK_d: {
-						game_state->show_collision_debugger = !game_state->show_collision_debugger;
+						debug_state->show_collision_debugger = !debug_state->show_collision_debugger;
 					} break;
 
 					case SDLK_F11: {
@@ -294,11 +301,22 @@ int main(int argc, char *args[]) {
 		previous_time = current_time;
 
 		while (time_accumulator >= Game_Properties::sim_time_ms) {
+			*previous_game_state = *game_state;
 			time_accumulator -= Game_Properties::sim_time_ms;
-			Game::update(game_state, input, persistent_game_state, platform, Game_Properties::sim_time_s);
+			Game::update(
+				game_state, 
+				input, 
+				persistent_game_state, 
+				debug_state, 
+				platform, 
+				Game_Properties::sim_time_s
+			);
 		}
 
-		renderer->render(*application, *game_state);
+		const float alpha = time_accumulator / Game_Properties::sim_time_ms;
+		Game::populate_sprites(game_state, previous_game_state, alpha);
+
+		renderer->render(*game_state, *debug_state);
 		SDL_GL_SwapWindow(window);
 	}
 
