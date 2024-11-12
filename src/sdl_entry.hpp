@@ -20,6 +20,7 @@
 #include "input.hpp"
 #include "sdl_platform.hpp"
 #include "debug_state.hpp"
+#include "sdl_audio_player.hpp"
 
 static GL_Renderer *renderer = nullptr;
 static Application *application = nullptr;
@@ -29,6 +30,7 @@ static Game_State *game_state = nullptr;
 static Game_State *previous_game_state = nullptr;
 static Debug_State *debug_state = nullptr;
 static Input *input = nullptr;
+static SDL_Audio_Player *audio_player = nullptr;
 
 void debug_message_handle(
 	GLenum source,
@@ -80,7 +82,7 @@ void free_shader_contents(Shader_Contents *contents) {
 
 // Must have the main standard arguments for SDL to work.
 int main(int argc, char *args[]) {
-	int success = SDL_Init(SDL_INIT_VIDEO);
+	int success = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
 	if (success != 0) {
 		SDL_Log(SDL_GetError());
 		return -1;
@@ -230,6 +232,10 @@ int main(int argc, char *args[]) {
 		FT_Done_FreeType(freetype);
 	}
 
+	// Initialise audio
+	audio_player = new SDL_Audio_Player();
+	audio_player->init(executable_location + "assets/audio/");
+
 	game_state = new Game_State();
 	Game::setup(game_state);
 
@@ -308,7 +314,8 @@ int main(int argc, char *args[]) {
 				input, 
 				persistent_game_state, 
 				debug_state, 
-				platform, 
+				platform,
+				audio_player, 
 				Game_Properties::sim_time_s
 			);
 		}

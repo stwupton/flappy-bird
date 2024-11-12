@@ -12,6 +12,7 @@
 #include "input.hpp"
 #include "intersection.hpp"
 #include "debug_state.hpp"
+#include "audio_player.hpp"
 
 struct Game {
 	static void setup(Game_State *state) {
@@ -60,6 +61,7 @@ struct Game {
 		Persistent_Game_State *persistent_state, 
 		Debug_State *debug_state, 
 		Platform *platform,
+		Audio_Player *audio_player,
 		float delta
 	) {
 		state->text = {};
@@ -75,8 +77,8 @@ struct Game {
 		hills(state, delta);
 		pipe(state, delta);
 		ground(state, delta);
-		bird(state, input, delta);
-		score(state, persistent_state);
+		bird(state, input, audio_player, delta);
+		score(state, persistent_state, audio_player);
 		detect_collisions(state);
 		debug_collision_shapes(*state, debug_state);
 	}
@@ -342,7 +344,7 @@ private:
 		return state.play_started && !state.bird.is_colliding;
 	}
 	
-	static void bird(Game_State *state, Input *input, float delta) {
+	static void bird(Game_State *state, Input *input, Audio_Player *audio_player, float delta) {
 		const Asset::Texture bird_texture = Asset::get_texture(Asset::Texture_ID::bird);
 
 		// Apply gravity
@@ -361,6 +363,7 @@ private:
 				state->bird.y_velocity = Game_Properties::bird.flap_force;
 			}
 			input->flap_handled();
+			audio_player->flap();
 		}
 
 		if (state->play_started) {
@@ -398,7 +401,11 @@ private:
 		}
 	}
 
-	static void score(Game_State *state, Persistent_Game_State *persistent_state) {
+	static void score(
+		Game_State *state, 
+		Persistent_Game_State *persistent_state, 
+		Audio_Player *audio_player
+	) {
 		int score = persistent_state->high_score;
 
 		if (state->play_started) {
@@ -408,6 +415,7 @@ private:
 				if (state->pipe_pairs[i].shared_x <= 0 && state->last_scoring_pipe_index != i) {
 					state->last_scoring_pipe_index = i;
 					state->score++;
+					audio_player->score();
 				}
 			}
 
