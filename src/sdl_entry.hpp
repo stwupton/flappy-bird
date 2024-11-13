@@ -273,6 +273,11 @@ int main(int argc, char *args[]) {
 						debug_state->show_collision_debugger = !debug_state->show_collision_debugger;
 					} break;
 
+					case SDLK_c: {
+						persistent_game_state->high_score = 0;
+						platform->save_high_score(0);
+					} break;
+
 					case SDLK_F11: {
 						const bool is_fullscreen = SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP;
 						if (is_fullscreen) {

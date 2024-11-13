@@ -3,4 +3,5 @@
 struct Audio_Player {
 	virtual void flap() = 0;
 	virtual void score() = 0;
+	virtual void hit() = 0;
 };

@@ -79,7 +79,7 @@ struct Game {
 		ground(state, delta);
 		bird(state, input, audio_player, delta);
 		score(state, persistent_state, audio_player);
-		detect_collisions(state);
+		detect_collisions(state, audio_player);
 		debug_collision_shapes(*state, debug_state);
 	}
 
@@ -252,7 +252,13 @@ private:
 		debug_state->debug_shapes.push(floor_collision_shape);
 	}
 
-	static void detect_collisions(Game_State *state) {
+	static void detect_collisions(Game_State *state, Audio_Player *audio_player) {
+		if (state->bird.is_colliding) {
+			return;
+		}
+
+		bool is_colliding = false;
+
 		for (const Pipe_Pair &pair : state->pipe_pairs) {
 			for (const Pipe &pipe : { pair.top, pair.bottom }) {
 				const bool is_intersecting = circle_rect_intersection(
@@ -263,22 +269,21 @@ private:
 				);
 
 				if (is_intersecting) {
-					state->bird.is_colliding = true;
-					return;
+					is_colliding = true;
 				}
 			}
 		}
 
-		const bool is_colliding_floor = circle_rect_intersection(
+		is_colliding = is_colliding || circle_rect_intersection(
 			state->bird.position, 
 			Game_Properties::bird.collision_radius, 
 			Game_Properties::floor_collision.position, 
 			Game_Properties::floor_collision.size
 		);
 
-		if (is_colliding_floor) {
-			state->bird.is_colliding = true;
-			return;
+		state->bird.is_colliding = is_colliding;
+		if (is_colliding) {
+			audio_player->hit();
 		}
 	}
 

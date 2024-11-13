@@ -17,6 +17,7 @@ struct SDL_Audio_Player : Audio_Player {
 private:
 	Audio flap_audio;
 	Audio score_audio;
+	Audio hit_audio;
 
 public:
 	bool init(std::string audio_path) {
@@ -26,6 +27,11 @@ public:
 		}
 
 		success = this->load(audio_path + "score.wav", &this->score_audio);
+		if (!success) {
+			return false;
+		}
+
+		success = this->load(audio_path + "hit.wav", &this->hit_audio);
 		if (!success) {
 			return false;
 		}
@@ -54,6 +60,10 @@ public:
 
 	void score() override {
 		this->play(&this->score_audio);
+	}
+
+	void hit() override {
+		this->play(&this->hit_audio);
 	}
 
 private:
@@ -102,5 +112,6 @@ private:
 		SDL_Audio_Player *player = (SDL_Audio_Player*)data;
 		mix_audio(stream, stream_length, &player->flap_audio);
 		mix_audio(stream, stream_length, &player->score_audio);
+		mix_audio(stream, stream_length, &player->hit_audio);
 	}
 };
