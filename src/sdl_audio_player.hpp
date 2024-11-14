@@ -14,24 +14,33 @@ struct Audio {
 };
 
 struct SDL_Audio_Player : Audio_Player {
+	Platform &platform;
+
+	SDL_Audio_Player(Platform &platform) : platform{platform} {}
+
 private:
 	Audio flap_audio;
 	Audio score_audio;
 	Audio hit_audio;
 
 public:
-	bool init(std::string audio_path) {
-		bool success = this->load(audio_path + "flap.wav", &this->flap_audio);
+	bool init() {
+		const std::string asset_path = this->platform.get_asset_path();
+
+		const std::string flap_audio_path = asset_path + Asset::get_audio(Asset::Audio_ID::flap);
+		bool success = this->load(flap_audio_path, &this->flap_audio);
 		if (!success) {
 			return false;
 		}
 
-		success = this->load(audio_path + "score.wav", &this->score_audio);
+		const std::string score_audio_path = asset_path + Asset::get_audio(Asset::Audio_ID::score);
+		success = this->load(score_audio_path, &this->score_audio);
 		if (!success) {
 			return false;
 		}
 
-		success = this->load(audio_path + "hit.wav", &this->hit_audio);
+		const std::string hit_audio_path = asset_path + Asset::get_audio(Asset::Audio_ID::hit);
+		success = this->load(hit_audio_path, &this->hit_audio);
 		if (!success) {
 			return false;
 		}

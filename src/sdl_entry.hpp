@@ -6,12 +6,6 @@
 #include <iostream>
 #include <string>
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
-
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
 #include "application.hpp"
 #include "game.hpp"
 #include "persistent_game_state.hpp"
@@ -46,38 +40,6 @@ void debug_message_handle(
 	} else {
 		platform->log_info("GL Debug Message: %s", message);
 	}
-}
-
-Shader_Contents get_shader_contents(const char *name) {
-	std::string file_path = "";
-	std::string executable_location = SDL_GetBasePath();
-	SDL_RWops *file;
-	Sint64 file_size = 0;
-
-	// Vertex Shader
-	file_path = executable_location + "assets/shaders/" + name + ".vert";
-	file = SDL_RWFromFile(file_path.c_str(), "r");
-	file_size = SDL_RWsize(file);
-	char *vertex_contents = (char *)malloc(sizeof(char) * (file_size + 1));
-	memset(vertex_contents, 0, sizeof(char) * (file_size + 1));
-	SDL_RWread(file, vertex_contents, sizeof(char), file_size);
-	SDL_RWclose(file);
-
-	// Fragment Shader
-	file_path = executable_location + "assets/shaders/" + name + ".frag";
-	file = SDL_RWFromFile(file_path.c_str(), "r");
-	file_size = SDL_RWsize(file);
-	char *fragment_contents = (char *)malloc(sizeof(char) * (file_size + 1));
-	memset(fragment_contents, 0, sizeof(char) * (file_size + 1));
-	SDL_RWread(file, fragment_contents, sizeof(char), file_size);
-	SDL_RWclose(file);
-
-	return { .vertex = vertex_contents, .fragment = fragment_contents };
-}
-
-void free_shader_contents(Shader_Contents *contents) {
-	free((void *)contents->vertex);
-	free((void *)contents->fragment);
 }
 
 // Must have the main standard arguments for SDL to work.
@@ -125,7 +87,6 @@ int main(int argc, char *args[]) {
 	}
 
 	success = SDL_GL_SetSwapInterval(-1);
-
 	const bool vsync_not_supported = success == -1;
 	if (vsync_not_supported) {
 		success = SDL_GL_SetSwapInterval(1);
@@ -144,105 +105,25 @@ int main(int argc, char *args[]) {
 
 	platform = new SDL_Platform();
 
-	// TODO(steven): Clean up loading
-
-	// Get shader contents
-	Shader_Contents basic_shader_contents = get_shader_contents("basic");
-	Shader_Contents shape_shader_contents = get_shader_contents("shape");
-	Shader_Contents text_shader_contents = get_shader_contents("text");
-
 	renderer = new GL_Renderer(*application, *platform);
-	renderer->init(
-		debug_message_handle, 
-		basic_shader_contents, 
-		shape_shader_contents, 
-		text_shader_contents
-	); 
-
-	// Delete shader file contents
-	free_shader_contents(&basic_shader_contents);
-	free_shader_contents(&shape_shader_contents);
-
-	// Load all textures
-	std::string file_path = "";
-	std::string executable_location = SDL_GetBasePath();
-	for (int i = 0; i < Asset::texture_data.size(); i++) {
-		Asset::Texture &texture = Asset::texture_data[i];
-		Asset::Texture_ID texture_id = static_cast<Asset::Texture_ID>(i);
-
-		file_path = executable_location + texture.location;
-
-		// TODO(steven): Do we need this?
-		int channels;
-		unsigned char *data = stbi_load(
-			file_path.c_str(), 
-			&texture.width, 
-			&texture.height, 
-			&channels, 
-			4
-		);
-
-		if (data == nullptr) {
-			SDL_Log(stbi_failure_reason());
-			return -1;
-		}
-
-		renderer->load_texture(data, texture_id, texture);
-
-		stbi_image_free(data);
-	}
-
-	// Load font 
-	{
-		file_path = executable_location + "assets/fonts/PressStart2P-Regular.ttf", "rb";
-		FT_Library freetype;
-		if (FT_Init_FreeType(&freetype) != 0) {
-			SDL_Log("Could not init FreeType.");
-			return -1;
-		}
-
-		FT_Face face;
-		if (FT_New_Face(freetype, file_path.c_str(), 0, &face) != 0) {
-			SDL_Log("Could not load font: %s", file_path);
-			return -1;
-		}
-
-		FT_Set_Pixel_Sizes(face, 0, 16);
-
-		renderer->load_font(face->size->metrics.height);
-
-		for (unsigned char i = 0; i < 128; i++) {
-			if (FT_Load_Char(face, i, FT_LOAD_RENDER) != 0) {
-				SDL_Log("Could not load glyph: %c, in font: %s", i, file_path);
-				return -1;
-			}
-
-			renderer->load_font_character(
-				i, 
-				face->glyph->bitmap.buffer, 
-				face->glyph->bitmap.width, 
-				face->glyph->bitmap.rows, 
-				face->glyph->bitmap_left,
-				face->glyph->bitmap_top, 
-				face->glyph->advance.x
-			);
-		}
-
-		FT_Done_Face(face);
-		FT_Done_FreeType(freetype);
+	success = renderer->init(debug_message_handle); 
+	if (!success) {
+		return -1;
 	}
 
 	// Initialise audio
-	audio_player = new SDL_Audio_Player();
-	audio_player->init(executable_location + "assets/audio/");
+	audio_player = new SDL_Audio_Player(*platform);
+	audio_player->init();
 
+	// Initialise game states
 	game_state = new Game_State();
 	Game::setup(game_state);
 
 	previous_game_state = new Game_State();
 
-	// TODO(steven): Hide behind flag
+	#ifndef NDEBUG
 	debug_state = new Debug_State();
+	#endif
 
 	input = new Input();
 
@@ -251,7 +132,6 @@ int main(int argc, char *args[]) {
 
 	Uint64 previous_time = SDL_GetTicks64();
 	float time_accumulator = 0;
-	float sim_speed = 1;
 
 	bool should_close = false;
 	while (!should_close) {
@@ -259,14 +139,15 @@ int main(int argc, char *args[]) {
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_EventType::SDL_KEYDOWN) {
 				switch (event.key.keysym.sym) {
+					#ifndef NDEBUG
 					case SDLK_MINUS: {
-						sim_speed -= sim_speed <= 1.0f ? 0.1f : 1.0f;
-						sim_speed = fmaxf(0.0f, sim_speed);
+						debug_state->sim_speed -= debug_state->sim_speed <= 1.0f ? 0.1f : 1.0f;
+						debug_state->sim_speed = fmaxf(0.0f, debug_state->sim_speed);
 					} break;
 
 					case SDLK_EQUALS: {
-						sim_speed += sim_speed < 1.0f ? 0.1f : 1.0f;
-						sim_speed = fminf(255, sim_speed);
+						debug_state->sim_speed += debug_state->sim_speed < 1.0f ? 0.1f : 1.0f;
+						debug_state->sim_speed = fminf(255, debug_state->sim_speed);
 					} break;
 
 					case SDLK_d: {
@@ -277,6 +158,7 @@ int main(int argc, char *args[]) {
 						persistent_game_state->high_score = 0;
 						platform->save_high_score(0);
 					} break;
+					#endif
 
 					case SDLK_F11: {
 						const bool is_fullscreen = SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP;
@@ -308,7 +190,13 @@ int main(int argc, char *args[]) {
 		}
 
 		const Uint64 current_time = SDL_GetTicks64();
-		time_accumulator += (current_time - previous_time) * sim_speed;
+
+		if (debug_state != nullptr) {
+			time_accumulator += (current_time - previous_time) * debug_state->sim_speed;
+		} else {
+			time_accumulator += current_time - previous_time;
+		}
+
 		previous_time = current_time;
 
 		while (time_accumulator >= Game_Properties::sim_time_ms) {
@@ -328,7 +216,7 @@ int main(int argc, char *args[]) {
 		const float alpha = time_accumulator / Game_Properties::sim_time_ms;
 		Game::populate_sprites(game_state, previous_game_state, alpha);
 
-		renderer->render(*game_state, *debug_state);
+		renderer->render(*game_state, debug_state);
 		SDL_GL_SwapWindow(window);
 	}
 

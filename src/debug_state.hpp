@@ -24,4 +24,5 @@ struct Shape {
 struct Debug_State {
 	bool show_collision_debugger = false;
 	Array<Shape, 16> debug_shapes;
+	float sim_speed = 1.0f;
 };

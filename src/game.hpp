@@ -80,7 +80,10 @@ struct Game {
 		bird(state, input, audio_player, delta);
 		score(state, persistent_state, audio_player);
 		detect_collisions(state, audio_player);
-		debug_collision_shapes(*state, debug_state);
+
+		if (debug_state != nullptr) {
+			debug_collision_shapes(*state, debug_state);
+		}
 	}
 
 	static void populate_sprites(Game_State *state, Game_State *previous_state, float alpha) {
@@ -355,7 +358,7 @@ private:
 		// Apply gravity
 		if (state->play_started) {
 			if (input->hovering && state->bird.y_velocity > .0f) {
-				state->bird.y_velocity -= Game_Properties::bird.gravity * 0.5f;
+				state->bird.y_velocity -= Game_Properties::bird.gravity * Game_Properties::bird.hovering_scale;
 			} else {
 				state->bird.y_velocity -= Game_Properties::bird.gravity;
 			}
@@ -363,7 +366,6 @@ private:
 
 		// Flap 
 		if (input->flap && !state->bird.is_colliding) {
-			// TODO(steven): Workaround for not going too high, maybe collide at the top instead
 			if (state->bird.position.y < Game_Properties::view.height / 2) {
 				state->bird.y_velocity = Game_Properties::bird.flap_force;
 			}
@@ -415,7 +417,6 @@ private:
 
 		if (state->play_started) {
 			// Update score
-			// TODO(steven): Can this be better?
 			for (int i = 0; i < state->pipe_pairs.size(); i++) {
 				if (state->pipe_pairs[i].shared_x <= 0 && state->last_scoring_pipe_index != i) {
 					state->last_scoring_pipe_index = i;

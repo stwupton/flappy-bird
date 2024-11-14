@@ -29,6 +29,7 @@ namespace Game_Properties {
 		const float gravity = 10.f;
 		const float flap_force = 200.f;
 		const float collision_radius = 12.0f;
+		const float hovering_scale = 0.5f;
 	} bird;
 
 	const struct {

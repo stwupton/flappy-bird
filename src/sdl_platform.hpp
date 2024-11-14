@@ -52,4 +52,10 @@ public:
 		SDL_RWread(this->save_file, contents, sizeof(char), file_size);
 		return _atoi64(contents);
 	}
+
+	const std::string get_asset_path() const override {
+		const std::string executable_location = SDL_GetBasePath();
+		const std::string asset_path = executable_location + "assets/";
+		return asset_path;
+	}
 };

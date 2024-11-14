@@ -7,6 +7,12 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 #include "application.hpp"
 #include "array.hpp"
 #include "assets.hpp"
@@ -80,12 +86,7 @@ public:
 		application{application}, 
 		platform{platform} {}
 
-	void init(
-		GLDEBUGPROC debug_message_handle, 
-		const Shader_Contents &basic_shader_contents,
-		const Shader_Contents &shape_shader_contents,
-		const Shader_Contents &text_shader_contents
-	) {
+	bool init(GLDEBUGPROC debug_message_handle) {
 		// Global settings
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -102,17 +103,32 @@ public:
 		const float top = (float)Game_Properties::view.height / 2;
 		const glm::mat4 view_projection = glm::ortho(left, right, bottom, top);
 
+		Shader_Contents basic_shader_contents = get_shader_contents(Asset::Shader_ID::basic);
 		this->create_basic_shader(basic_shader_contents);
 		glUniformMatrix4fv(this->basic_shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
+		this->free_shader_contents(&basic_shader_contents);
 
+		Shader_Contents shape_shader_contents = get_shader_contents(Asset::Shader_ID::shape);
 		this->create_shape_shader(shape_shader_contents);
 		glUniformMatrix4fv(this->shape_shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
+		this->free_shader_contents(&shape_shader_contents);
 
+		Shader_Contents text_shader_contents = get_shader_contents(Asset::Shader_ID::text);
 		this->create_text_shader(text_shader_contents);
 		glUniformMatrix4fv(this->text_shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
+		this->free_shader_contents(&text_shader_contents);
 
 		// Generate all texture indices
 		glGenTextures(static_cast<GLsizei>(this->texture_indices.size()), this->texture_indices.data());
+		const bool textures_loaded_successfully = this->load_all_textures();
+		if (!textures_loaded_successfully) {
+			return false;
+		}
+
+		const bool font_loaded_successfully = this->load_font();
+		if (!font_loaded_successfully) {
+			return false;
+		}
 
 		// Create generic vertex array object
 		glGenVertexArrays(1, &this->generic_vao);
@@ -162,9 +178,11 @@ public:
 
 		glEnableVertexAttribArray(1);
 		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+
+		return true;
 	}
 
-	void render(const Game_State &state, const Debug_State &debug_state) {
+	void render(const Game_State &state, Debug_State *debug_state) {
 		this->set_viewport();
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -235,63 +253,64 @@ public:
 			}
 		}
 
-		glUseProgram(this->shape_shader_program.id);
-		glBindVertexArray(this->generic_vao);
-		for (const Shape &debug_shape : debug_state.debug_shapes) {
-			const glm::vec4 colour = glm::vec4(1.0f, 1.0f, 1.0f, 0.5f);
+		if (debug_state != nullptr) {
+			glUseProgram(this->shape_shader_program.id);
+			glBindVertexArray(this->generic_vao);
+			for (const Shape &debug_shape : debug_state->debug_shapes) {
+				const glm::vec4 colour = glm::vec4(1.0f, 1.0f, 1.0f, 0.5f);
 
-			glm::mat4 scale_transform;
-			if (debug_shape.type == Shape_Type::rectangle) {
-				scale_transform = glm::scale(identity, glm::vec3(debug_shape.rectangle.width, debug_shape.rectangle.height, 1.0f));
-			} else if (debug_shape.type == Shape_Type::circle) {
-				const float size = debug_shape.circle.radius * 2;
-				scale_transform = glm::scale(identity, glm::vec3(size, size, 1.0f));
+				glm::mat4 scale_transform;
+				if (debug_shape.type == Shape_Type::rectangle) {
+					scale_transform = glm::scale(identity, glm::vec3(debug_shape.rectangle.width, debug_shape.rectangle.height, 1.0f));
+				} else if (debug_shape.type == Shape_Type::circle) {
+					const float size = debug_shape.circle.radius * 2;
+					scale_transform = glm::scale(identity, glm::vec3(size, size, 1.0f));
+				}
+
+				const glm::mat4 transform = debug_shape.transform * scale_transform;
+
+				glUniform4fv(this->shape_shader_program.uniform_location.colour, 1, &debug_shape.colour[0]);
+				glUniformMatrix4fv(this->shape_shader_program.uniform_location.transform, 1, GL_FALSE, &transform[0][0]);
+				glUniform1i(this->shape_shader_program.uniform_location.shape_type, (GLint)debug_shape.type);
+				glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 			}
-
-			const glm::mat4 transform = debug_shape.transform * scale_transform;
-
-			glUniform4fv(this->shape_shader_program.uniform_location.colour, 1, &debug_shape.colour[0]);
-			glUniformMatrix4fv(this->shape_shader_program.uniform_location.transform, 1, GL_FALSE, &transform[0][0]);
-			glUniform1i(this->shape_shader_program.uniform_location.shape_type, (GLint)debug_shape.type);
-			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 		}
 	}
 
-	void load_texture(unsigned char *data, Asset::Texture_ID asset_id, const Asset::Texture &texture) {
-		const size_t asset_index = static_cast<size_t>(asset_id);
-		glBindTexture(GL_TEXTURE_2D, this->texture_indices[asset_index]);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.width, texture.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	}
-
-	void load_font(int height) {
-		this->font_face.height = height >> 6;
-	}
-
-	void load_font_character(unsigned char character, unsigned char *bitmap, int width, int height, int left, int top, int advance_x) {
-		// TODO(steven): Find out what this is actually doing.
-		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-		Font_Face_Character &font_character = this->font_face.characters[(size_t)character];
-		font_character.width = width;
-		font_character.height = height;
-		font_character.top = top;
-		font_character.left = left;
-		font_character.advance_x = advance_x;
-		glGenTextures(1, &font_character.texture_id);
-		
-		glBindTexture(GL_TEXTURE_2D, font_character.texture_id);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, font_character.width, font_character.height, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	}
-
 private:
+	Shader_Contents get_shader_contents(const Asset::Shader_ID shader_id) {
+		const std::string shader_path = Asset::get_shader(shader_id);
+		const std::string file_path = this->platform.get_asset_path() + shader_path;
+
+		SDL_RWops *file;
+		Sint64 file_size = 0;
+
+		// Vertex Shader
+		const std::string vert_shader_path = file_path + ".vert";
+		file = SDL_RWFromFile(vert_shader_path.c_str(), "r");
+		file_size = SDL_RWsize(file);
+		char *vertex_contents = (char *)malloc(sizeof(char) * (file_size + 1));
+		memset(vertex_contents, 0, sizeof(char) * (file_size + 1));
+		SDL_RWread(file, vertex_contents, sizeof(char), file_size);
+		SDL_RWclose(file);
+
+		// Fragment Shader
+		const std::string frag_shader_path = file_path + ".frag";
+		file = SDL_RWFromFile(frag_shader_path.c_str(), "r");
+		file_size = SDL_RWsize(file);
+		char *fragment_contents = (char *)malloc(sizeof(char) * (file_size + 1));
+		memset(fragment_contents, 0, sizeof(char) * (file_size + 1));
+		SDL_RWread(file, fragment_contents, sizeof(char), file_size);
+		SDL_RWclose(file);
+
+		return { .vertex = vertex_contents, .fragment = fragment_contents };
+	}
+
+	void free_shader_contents(Shader_Contents *contents) {
+		free((void *)contents->vertex);
+		free((void *)contents->fragment);
+	}
+
 	void create_basic_shader(const Shader_Contents &contents) {
 		// Compile shaders
 		GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
@@ -376,6 +395,108 @@ private:
 		this->text_shader_program.uniform_location.view_projection = glGetUniformLocation(this->text_shader_program.id, "view_projection");
 		this->text_shader_program.uniform_location.transform = glGetUniformLocation(this->text_shader_program.id, "transform");
 		this->text_shader_program.uniform_location.text_colour = glGetUniformLocation(this->text_shader_program.id, "text_color");
+	}
+
+	bool load_all_textures() {
+		std::string file_path = "";
+		for (int i = 0; i < Asset::texture_data.size(); i++) {
+			Asset::Texture &texture = Asset::texture_data[i];
+			Asset::Texture_ID texture_id = static_cast<Asset::Texture_ID>(i);
+
+			file_path = this->platform.get_asset_path() + texture.location;
+
+			// Don't need to do anything with `channels_in_texture` as stbi_load
+			// will automatically fill in the extra channels for me.
+			int channels_in_texture;
+			unsigned char *data = stbi_load(
+				file_path.c_str(), 
+				&texture.width, 
+				&texture.height, 
+				&channels_in_texture, 
+				4
+			);
+
+			if (data == nullptr) {
+				SDL_Log(stbi_failure_reason());
+				return false;
+			}
+
+			this->load_texture(data, texture_id, texture);
+
+			stbi_image_free(data);
+		}
+
+		return true;
+	}
+
+	void load_texture(unsigned char *data, Asset::Texture_ID asset_id, const Asset::Texture &texture) {
+		const size_t asset_index = static_cast<size_t>(asset_id);
+		glBindTexture(GL_TEXTURE_2D, this->texture_indices[asset_index]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.width, texture.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	}
+
+	bool load_font() {
+		std::string file_path = this->platform.get_asset_path() + Asset::font_location;
+
+		FT_Library freetype;
+		if (FT_Init_FreeType(&freetype) != 0) {
+			SDL_Log("Could not init FreeType.");
+			return false;
+		}
+
+		FT_Face face;
+		if (FT_New_Face(freetype, file_path.c_str(), 0, &face) != 0) {
+			SDL_Log("Could not load font: %s", file_path);
+			return false;
+		}
+
+		FT_Set_Pixel_Sizes(face, 0, 16);
+		this->font_face.height = face->size->metrics.height >> 6;
+
+		for (unsigned char i = 0; i < 128; i++) {
+			if (FT_Load_Char(face, i, FT_LOAD_RENDER) != 0) {
+				SDL_Log("Could not load glyph: %c, in font: %s", i, file_path);
+				return false;
+			}
+
+			this->load_font_character(
+				i, 
+				face->glyph->bitmap.buffer, 
+				face->glyph->bitmap.width, 
+				face->glyph->bitmap.rows, 
+				face->glyph->bitmap_left,
+				face->glyph->bitmap_top, 
+				face->glyph->advance.x
+			);
+		}
+
+		FT_Done_Face(face);
+		FT_Done_FreeType(freetype);
+
+		return true;
+	}
+
+	void load_font_character(unsigned char character, unsigned char *bitmap, int width, int height, int left, int top, int advance_x) {
+		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+		Font_Face_Character &font_character = this->font_face.characters[(size_t)character];
+		font_character.width = width;
+		font_character.height = height;
+		font_character.top = top;
+		font_character.left = left;
+		font_character.advance_x = advance_x;
+		glGenTextures(1, &font_character.texture_id);
+		
+		glBindTexture(GL_TEXTURE_2D, font_character.texture_id);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, font_character.width, font_character.height, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	}
 
 	void set_viewport() {
