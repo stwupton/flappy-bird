@@ -6,7 +6,7 @@ end
 
 workspace "FlappyBird"
 	configurations { 'Debug', 'Release' }
-	platforms { 'Win64' }
+	platforms { 'Win64', 'Android64' }
 	location 'build'
 
 project 'flappy-bird'
@@ -52,3 +52,8 @@ project 'flappy-bird'
 
 	filter { 'system:Windows', 'configurations:Release' }
 		links { 'glew32', 'SDL2main', 'SDL2', 'zlib', 'bz2', 'brotlicommon', 'brotlidec', 'libpng16', 'freetype' }
+
+	filter { 'platforms:Android64' }
+		system 'Android'
+		architecture 'ARM64'
+
