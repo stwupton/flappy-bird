@@ -287,6 +287,7 @@ private:
 		state->bird.is_colliding = is_colliding;
 		if (is_colliding) {
 			audio_player->hit();
+			state->bird.y_velocity = 0.0f;
 		}
 	}
 
@@ -378,10 +379,12 @@ private:
 		}
 
 		// Apply rotation
-		const float rotation_smooth_scalar = .2f;
-		const float rotation_degrees = glm::clamp(state->bird.y_velocity * rotation_smooth_scalar, -30.f, 10.f);
-		const float rotation_radians = rotation_degrees * glm::pi<float>() / 180;
-		state->bird.rotation = rotation_radians;
+		if (!state->bird.is_colliding) {
+			const float rotation_smooth_scalar = .2f;
+			const float rotation_degrees = glm::clamp(state->bird.y_velocity * rotation_smooth_scalar, -30.f, 10.f);
+			const float rotation_radians = rotation_degrees * glm::pi<float>() / 180;
+			state->bird.rotation = rotation_radians;
+		}
 	}
 
 	static void pipe(Game_State *state, float delta) {
