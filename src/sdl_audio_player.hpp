@@ -25,21 +25,19 @@ private:
 
 public:
 	bool init() {
-		const std::string asset_path = this->platform.get_asset_path();
-
-		const std::string flap_audio_path = asset_path + Asset::get_audio(Asset::Audio_ID::flap);
+		const std::string flap_audio_path = this->platform.get_asset_path(Asset::get_audio(Asset::Audio_ID::flap));
 		bool success = this->load(flap_audio_path, &this->flap_audio);
 		if (!success) {
 			return false;
 		}
 
-		const std::string score_audio_path = asset_path + Asset::get_audio(Asset::Audio_ID::score);
+		const std::string score_audio_path = this->platform.get_asset_path(Asset::get_audio(Asset::Audio_ID::score));
 		success = this->load(score_audio_path, &this->score_audio);
 		if (!success) {
 			return false;
 		}
 
-		const std::string hit_audio_path = asset_path + Asset::get_audio(Asset::Audio_ID::hit);
+		const std::string hit_audio_path = this->platform.get_asset_path(Asset::get_audio(Asset::Audio_ID::hit));
 		success = this->load(hit_audio_path, &this->hit_audio);
 		if (!success) {
 			return false;

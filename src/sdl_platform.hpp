@@ -7,6 +7,10 @@
 
 #include "platform.hpp"
 
+struct _SDL_Platform_File : Platform_File {
+	SDL_RWops *file;
+};
+
 struct SDL_Platform : Platform {
 private:
 	SDL_RWops *save_file;
@@ -53,9 +57,30 @@ public:
 		return _atoi64(contents);
 	}
 
-	const std::string get_asset_path() const override {
+	void load_file(const char *path, Platform_File **file) const override {
+		_SDL_Platform_File *platform_file = new _SDL_Platform_File();
+		platform_file->file = SDL_RWFromFile(path, "r");
+		platform_file->content_size = SDL_RWsize(platform_file->file) + 1;
+		platform_file->contents = (char *)malloc(sizeof(char) * platform_file->content_size);
+		SDL_RWread(platform_file->file, platform_file->contents, sizeof(char), platform_file->content_size);
+
+		// Add null character to the end of contents
+		platform_file->contents[platform_file->content_size - 1] = 0;
+
+		*file = (Platform_File *)platform_file;
+	}
+
+	void close_file(Platform_File **file) const override {
+		_SDL_Platform_File *platform_file = (_SDL_Platform_File *)*file;
+		free(platform_file->contents);
+		SDL_RWclose(platform_file->file);
+		delete platform_file;
+		*file = nullptr;
+	}
+
+	const std::string get_asset_path(const char *file_path) const override {
 		const std::string executable_location = SDL_GetBasePath();
-		const std::string asset_path = executable_location + "assets/";
+		const std::string asset_path = executable_location + "assets/" + file_path;
 		return asset_path;
 	}
 };

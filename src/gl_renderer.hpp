@@ -32,27 +32,21 @@ struct Basic_Shader_Program {
 struct Shape_Shader_Program {
 	GLuint id;
 	struct {
-		GLint shape_type;
-		GLint colour;
 		GLint view_projection;
 		GLint transform;
+		GLint colour;
+		GLint shape_type;
 	} uniform_location;
 };
 
 struct Text_Shader_Program {
 	GLuint id;
 	struct {
-		GLint text_colour;
 		GLint view_projection;
 		GLint transform;
+		GLint text_colour;
 	} uniform_location;
 };
-
-struct Shader_Contents {
-	const char *vertex;
-	const char *fragment;
-};
-
 
 struct Font_Face_Character {
 	GLuint texture_id;
@@ -96,27 +90,8 @@ public:
 
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-		// Set up view projection transform and add it to the shader
-		const float left = -((float)Game_Properties::view.width / 2);
-		const float right = (float)Game_Properties::view.width / 2;
-		const float bottom = -((float)Game_Properties::view.height / 2);
-		const float top = (float)Game_Properties::view.height / 2;
-		const glm::mat4 view_projection = glm::ortho(left, right, bottom, top);
-
-		Shader_Contents basic_shader_contents = get_shader_contents(Asset::Shader_ID::basic);
-		this->create_basic_shader(basic_shader_contents);
-		glUniformMatrix4fv(this->basic_shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
-		this->free_shader_contents(&basic_shader_contents);
-
-		Shader_Contents shape_shader_contents = get_shader_contents(Asset::Shader_ID::shape);
-		this->create_shape_shader(shape_shader_contents);
-		glUniformMatrix4fv(this->shape_shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
-		this->free_shader_contents(&shape_shader_contents);
-
-		Shader_Contents text_shader_contents = get_shader_contents(Asset::Shader_ID::text);
-		this->create_text_shader(text_shader_contents);
-		glUniformMatrix4fv(this->text_shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
-		this->free_shader_contents(&text_shader_contents);
+		this->setup_shaders();
+		this->setup_view_projection();
 
 		// Generate all texture indices
 		glGenTextures(static_cast<GLsizei>(this->texture_indices.size()), this->texture_indices.data());
@@ -278,123 +253,83 @@ public:
 	}
 
 private:
-	Shader_Contents get_shader_contents(const Asset::Shader_ID shader_id) {
-		const std::string shader_path = Asset::get_shader(shader_id);
-		const std::string file_path = this->platform.get_asset_path() + shader_path;
-
-		SDL_RWops *file;
-		Sint64 file_size = 0;
-
-		// Vertex Shader
-		const std::string vert_shader_path = file_path + ".vert";
-		file = SDL_RWFromFile(vert_shader_path.c_str(), "r");
-		file_size = SDL_RWsize(file);
-		char *vertex_contents = (char *)malloc(sizeof(char) * (file_size + 1));
-		memset(vertex_contents, 0, sizeof(char) * (file_size + 1));
-		SDL_RWread(file, vertex_contents, sizeof(char), file_size);
-		SDL_RWclose(file);
-
-		// Fragment Shader
-		const std::string frag_shader_path = file_path + ".frag";
-		file = SDL_RWFromFile(frag_shader_path.c_str(), "r");
-		file_size = SDL_RWsize(file);
-		char *fragment_contents = (char *)malloc(sizeof(char) * (file_size + 1));
-		memset(fragment_contents, 0, sizeof(char) * (file_size + 1));
-		SDL_RWread(file, fragment_contents, sizeof(char), file_size);
-		SDL_RWclose(file);
-
-		return { .vertex = vertex_contents, .fragment = fragment_contents };
+	GLint get_uniform_location(GLuint program_id, const char *uniform_name, const char *shader_name) {
+		const GLint location = glGetUniformLocation(program_id, uniform_name);
+		if (location == -1) {
+			this->log("Could not retrieve uniform location (%s) from shader (%s)", uniform_name, shader_name);
+		}
+		return location;
 	}
 
-	void free_shader_contents(Shader_Contents *contents) {
-		free((void *)contents->vertex);
-		free((void *)contents->fragment);
+	void setup_shaders() {
+		this->setup_shader(&this->basic_shader_program.id, Asset::Shader_ID::basic, "Basic");
+		this->basic_shader_program.uniform_location.view_projection = this->get_uniform_location(this->basic_shader_program.id, "view_projection", "Basic");
+		this->basic_shader_program.uniform_location.transform = this->get_uniform_location(this->basic_shader_program.id, "transform", "Basic");
+
+		this->setup_shader(&this->shape_shader_program.id, Asset::Shader_ID::shape, "Shape");
+		this->shape_shader_program.uniform_location.view_projection = this->get_uniform_location(this->shape_shader_program.id, "view_projection", "Shape");
+		this->shape_shader_program.uniform_location.transform = this->get_uniform_location(this->shape_shader_program.id, "transform", "Shape");
+		this->shape_shader_program.uniform_location.colour = this->get_uniform_location(this->shape_shader_program.id, "colour", "Shape");
+		this->shape_shader_program.uniform_location.shape_type = this->get_uniform_location(this->shape_shader_program.id, "shape_type", "Shape");
+
+		this->setup_shader(&this->text_shader_program.id, Asset::Shader_ID::text, "Text");
+		this->text_shader_program.uniform_location.view_projection = this->get_uniform_location(this->text_shader_program.id, "view_projection", "Text");
+		this->text_shader_program.uniform_location.transform = this->get_uniform_location(this->text_shader_program.id, "transform", "Text");
+		this->text_shader_program.uniform_location.text_colour = this->get_uniform_location(this->text_shader_program.id, "text_colour", "Text");
 	}
 
-	void create_basic_shader(const Shader_Contents &contents) {
-		// Compile shaders
+	void setup_shader(GLuint *program_id, Asset::Shader_ID shader_id, const char *name) {
+		const char *shader_path = Asset::get_shader(shader_id);
+		const std::string file_path = this->platform.get_asset_path(shader_path);
+
+		Platform_File *vertex_shader_file;
+		const std::string vertex_shader_path = file_path + ".vert";
+		this->platform.load_file(vertex_shader_path.c_str(), &vertex_shader_file);
+
 		GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-		glShaderSource(vertex_shader, 1, &contents.vertex, NULL);
+		glShaderSource(vertex_shader, 1, &vertex_shader_file->contents, NULL);
 		glCompileShader(vertex_shader);
-		this->log_shader_compile_error(vertex_shader, "Basic Vertex");
+		this->log_shader_compile_error(vertex_shader, name, "Vertex");
+		this->platform.close_file(&vertex_shader_file);
+
+		Platform_File *fragment_shader_file;
+		const std::string frag_shader_path = file_path + ".frag";
+		this->platform.load_file(frag_shader_path.c_str(), &fragment_shader_file);
 
 		GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-		glShaderSource(fragment_shader, 1, &contents.fragment, NULL);
+		glShaderSource(fragment_shader, 1, &fragment_shader_file->contents, NULL);
 		glCompileShader(fragment_shader);
-		this->log_shader_compile_error(fragment_shader, "Basic Fragment");
+		this->log_shader_compile_error(fragment_shader, name, "Fragment");
+		this->platform.close_file(&fragment_shader_file);
 
-		this->basic_shader_program.id = glCreateProgram();
-		glAttachShader(this->basic_shader_program.id, vertex_shader);
-		glAttachShader(this->basic_shader_program.id, fragment_shader);
-		glLinkProgram(this->basic_shader_program.id);
-		glUseProgram(this->basic_shader_program.id);
-		this->log_shader_link_error(this->basic_shader_program.id, "Basic");
+		GLuint id = glCreateProgram();
+		glAttachShader(id, vertex_shader);
+		glAttachShader(id, fragment_shader);
+		glLinkProgram(id);
+		glUseProgram(id);
+		this->log_shader_link_error(id, name);
+
+		*program_id = id;
 
 		glDeleteShader(vertex_shader);
 		glDeleteShader(fragment_shader);
-
-		// Fetch uniform locations
-		this->basic_shader_program.uniform_location.view_projection = glGetUniformLocation(this->basic_shader_program.id, "view_projection");
-		this->basic_shader_program.uniform_location.transform = glGetUniformLocation(this->basic_shader_program.id, "transform");
 	}
 
-	void create_shape_shader(const Shader_Contents &contents) {
-		// Compile shaders
-		GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-		glShaderSource(vertex_shader, 1, &contents.vertex, NULL);
-		glCompileShader(vertex_shader);
-		this->log_shader_compile_error(vertex_shader, "Shape Vertex");
+	void setup_view_projection() {
+		const float left = -((float)Game_Properties::view.width / 2);
+		const float right = (float)Game_Properties::view.width / 2;
+		const float bottom = -((float)Game_Properties::view.height / 2);
+		const float top = (float)Game_Properties::view.height / 2;
+		const glm::mat4 view_projection = glm::ortho(left, right, bottom, top);
 
-		GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-		glShaderSource(fragment_shader, 1, &contents.fragment, NULL);
-		glCompileShader(fragment_shader);
-		this->log_shader_compile_error(fragment_shader, "Shape Fragment");
-
-		this->shape_shader_program.id = glCreateProgram();
-		glAttachShader(this->shape_shader_program.id, vertex_shader);
-		glAttachShader(this->shape_shader_program.id, fragment_shader);
-		glLinkProgram(this->shape_shader_program.id);
-		this->log_shader_link_error(this->shape_shader_program.id, "Shape");
+		glUseProgram(this->basic_shader_program.id);
+		glUniformMatrix4fv(this->basic_shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
 
 		glUseProgram(this->shape_shader_program.id);
-
-		glDeleteShader(vertex_shader);
-		glDeleteShader(fragment_shader);
-
-		// Fetch uniform locations
-		this->shape_shader_program.uniform_location.view_projection = glGetUniformLocation(this->shape_shader_program.id, "view_projection");
-		this->shape_shader_program.uniform_location.transform = glGetUniformLocation(this->shape_shader_program.id, "transform");
-		this->shape_shader_program.uniform_location.colour = glGetUniformLocation(this->shape_shader_program.id, "colour");
-		this->shape_shader_program.uniform_location.shape_type = glGetUniformLocation(this->shape_shader_program.id, "shape_type");
-	}
-
-	void create_text_shader(const Shader_Contents &contents) {
-		// Compile shaders
-		GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-		glShaderSource(vertex_shader, 1, &contents.vertex, NULL);
-		glCompileShader(vertex_shader);
-		this->log_shader_compile_error(vertex_shader, "Text Vertex");
-
-		GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-		glShaderSource(fragment_shader, 1, &contents.fragment, NULL);
-		glCompileShader(fragment_shader);
-		this->log_shader_compile_error(fragment_shader, "Text Fragment");
-
-		this->text_shader_program.id = glCreateProgram();
-		glAttachShader(this->text_shader_program.id, vertex_shader);
-		glAttachShader(this->text_shader_program.id, fragment_shader);
-		glLinkProgram(this->text_shader_program.id);
-		this->log_shader_link_error(this->text_shader_program.id, "Text");
+		glUniformMatrix4fv(this->shape_shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
 
 		glUseProgram(this->text_shader_program.id);
-
-		glDeleteShader(vertex_shader);
-		glDeleteShader(fragment_shader);
-
-		// Fetch uniform locations
-		this->text_shader_program.uniform_location.view_projection = glGetUniformLocation(this->text_shader_program.id, "view_projection");
-		this->text_shader_program.uniform_location.transform = glGetUniformLocation(this->text_shader_program.id, "transform");
-		this->text_shader_program.uniform_location.text_colour = glGetUniformLocation(this->text_shader_program.id, "text_color");
+		glUniformMatrix4fv(this->text_shader_program.uniform_location.view_projection, 1, GL_FALSE, &view_projection[0][0]);
 	}
 
 	bool load_all_textures() {
@@ -403,7 +338,7 @@ private:
 			Asset::Texture &texture = Asset::texture_data[i];
 			Asset::Texture_ID texture_id = static_cast<Asset::Texture_ID>(i);
 
-			file_path = this->platform.get_asset_path() + texture.location;
+			file_path = this->platform.get_asset_path(texture.location);
 
 			// Don't need to do anything with `channels_in_texture` as stbi_load
 			// will automatically fill in the extra channels for me.
@@ -417,7 +352,7 @@ private:
 			);
 
 			if (data == nullptr) {
-				SDL_Log(stbi_failure_reason());
+				this->log(stbi_failure_reason());
 				return false;
 			}
 
@@ -440,17 +375,17 @@ private:
 	}
 
 	bool load_font() {
-		std::string file_path = this->platform.get_asset_path() + Asset::font_location;
+		std::string file_path = this->platform.get_asset_path(Asset::font_location);
 
 		FT_Library freetype;
 		if (FT_Init_FreeType(&freetype) != 0) {
-			SDL_Log("Could not init FreeType.");
+			this->log("Could not init FreeType.");
 			return false;
 		}
 
 		FT_Face face;
 		if (FT_New_Face(freetype, file_path.c_str(), 0, &face) != 0) {
-			SDL_Log("Could not load font: %s", file_path);
+			this->log("Could not load font: %s", file_path);
 			return false;
 		}
 
@@ -459,7 +394,7 @@ private:
 
 		for (unsigned char i = 0; i < 128; i++) {
 			if (FT_Load_Char(face, i, FT_LOAD_RENDER) != 0) {
-				SDL_Log("Could not load glyph: %c, in font: %s", i, file_path);
+				this->log("Could not load glyph: %c, in font: %s", i, file_path);
 				return false;
 			}
 
@@ -543,7 +478,7 @@ private:
 		free(message);
 	}
 
-	void log_shader_compile_error(GLuint shader_id, const char *name) const {
+	void log_shader_compile_error(GLuint shader_id, const char *name, const char *shader_type) const {
 		GLint success;
 		glGetShaderiv(shader_id, GL_COMPILE_STATUS, &success);
 
@@ -556,7 +491,7 @@ private:
 			memset(message, 0, message_byte_length);
 			glGetShaderInfoLog(shader_id, message_length, NULL, message);
 
-			this->log("Shader (%s) failed to compile. Message: %s", name, message);
+			this->log("Shader (%s - %s) failed to compile. Message: %s", name, shader_type, message);
 			free(message);
 		}
 	}
